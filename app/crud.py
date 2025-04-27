@@ -70,6 +70,20 @@ def create_peca_variacao(db: Session, peca_data: schemas.PecaCreate, # Schema co
                          image_urls: List[str] = []) -> models.Peca: # Lista de URLs já upadas
     """Cria o registro da peça no banco e associa URLs de imagens."""
 
+# Adicionar esta função dentro de app/crud.py
+
+def get_pecas_list(db: Session, skip: int = 0, limit: int = 100) -> List[models.Peca]:
+    """Busca uma lista paginada de peças/variações."""
+    try:
+        return db.query(models.Peca)\
+                 .order_by(models.Peca.codigo_base, models.Peca.sku_variacao)\
+                 .offset(skip)\
+                 .limit(limit)\
+                 .all()
+    except exc.SQLAlchemyError as e:
+        print(f"Erro DB ao listar peças: {e}")
+        return [] # Retorna lista vazia em caso de erro                    
+
     # 1. Validar Montadora
     db_montadora = get_montadora_by_cod(db, cod_montadora=cod_montadora)
     if not db_montadora: raise ValueError(f"Montadora {cod_montadora} não encontrada.")
