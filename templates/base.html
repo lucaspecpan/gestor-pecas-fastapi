@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gestor de Peças{% endblock %}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+    <style>
+        /* Estilos basicos para funcionalidade inicial */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; padding: 20px; max-width: 1200px; margin: auto; background-color: #f4f7f6; color: #333; }
+        h1, h2, h3 { color: #1a1a1a; margin-bottom: 0.75em; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 0.3em;}
+        h2 { border-bottom: 1px solid #eee; padding-bottom: 0.2em;}
+        form { margin-bottom: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #444; }
+        input[type="text"], input[type="number"], select, textarea { width: 95%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1em;}
+        input:focus, select:focus, textarea:focus { border-color: #007bff; outline: none; box-shadow: 0 0 0 2px rgba(0,123,255,.25); }
+        button, input[type="submit"] { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; transition: background-color 0.2s ease;}
+        button:hover, input[type="submit"]:hover { background-color: #0056b3; }
+        ul { list-style: none; padding: 0; margin-top: 15px; }
+        li { padding: 10px 5px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        li:last-child { border-bottom: none; }
+        li span { flex-grow: 1; margin-right: 10px; }
+        li small { color: #777; font-size: 0.85em;}
+        .error { color: #D8000C; background-color: #FFD2D2; border: 1px solid #D8000C; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .success { color: #4F8A10; background-color: #DFF2BF; border: 1px solid #4F8A10; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .htmx-indicator{ opacity:0; transition: opacity 200ms ease-in; margin-left: 10px; color: #007bff; font-style: italic;}
+        .htmx-request .htmx-indicator{ opacity:1 }
+        .htmx-request.htmx-indicator{ opacity:1 }
+        #messages { min-height: 40px; /* Evita 'pulo' do layout */}
+    </style>
+</head>
+<body>
+    <h1>Gestor de Peças Pro++</h1>
+    <hr>
+
+    <div id="messages">
+        {% block messages %}{% include 'partials/messages.html' %}{% endblock %}
+    </div>
+
+    {% block content %}
+    {% endblock %}
+
+    <script>
+        // Limpa mensagens após alguns segundos
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            const messagesDiv = document.getElementById('messages');
+            // Verifica se o elemento que disparou o swap está dentro de #messages
+            // ou se o próprio #messages foi o alvo, para evitar limpar mensagens
+            // que não foram recém-adicionadas por uma resposta HTMX focada em #messages.
+            // Uma abordagem mais simples é apenas verificar se há conteúdo.
+            if (messagesDiv && messages_div.innerHTML.trim() !== '') {
+                // Verifica se a resposta HTMX continha um elemento .success ou .error
+                // (Isso assume que a resposta HTMX que contém a mensagem tem essa classe)
+                // Pode precisar de ajuste dependendo de como você estrutura as respostas parciais.
+                const wasMessageResponse = evt.detail.elt.querySelector('.success, .error');
+                const isTargetMessageDiv = evt.detail.target.id === 'messages';
+
+                // Limpa apenas se a resposta parece ter incluído uma mensagem
+                // ou se o alvo era a própria div de mensagens.
+                // Ajuste esta lógica se necessário.
+                // if (wasMessageResponse || isTargetMessageDiv) {
+                    setTimeout(() => {
+                       if(messagesDiv) messagesDiv.innerHTML = '';
+                    }, 4000); // Limpa após 4 segundos
+                //}
+            }
+        });
+    </script>
+</body>
+</html>
