@@ -1,0 +1,96 @@
+{% extends "base.html" %} {# Herda a estrutura base #}
+
+{% block title %}Adicionar Nova Variação de Peça{% endblock %}
+
+{% block content %}
+<h2>Adicionar Nova Variação de Peça</h2>
+
+{% if error_message %}
+    <p class="error">{{ error_message }}</p> {# Exibe erro se o GET /pecas/nova falhar ao buscar montadoras #}
+{% endif %}
+
+{# O formulário envia dados para o endpoint POST /pecas #}
+{# IMPORTANTE: Adicionado enctype="multipart/form-data" para permitir upload de arquivos #}
+<form action="/pecas" method="post" enctype="multipart/form-data">
+
+    <h3>Informações Principais</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
+            <label for="cod_montadora">Montadora:*</label>
+            <select id="cod_montadora" name="cod_montadora" required>
+                <option value="">Selecione...</option>
+                {% for montadora in montadoras %}
+                    <option value="{{ montadora.cod_montadora }}">{{ montadora.nome_montadora }} ({{ montadora.cod_montadora }})</option>
+                {% endfor %}
+            </select>
+
+            <label for="cod_modelo">Cód. Modelo:*</label>
+            <input type="number" id="cod_modelo" name="cod_modelo" required min="1" step="1">
+
+            <label for="tipo_variacao">Tipo/Variação:*</label>
+            <select id="tipo_variacao" name="tipo_variacao" required>
+                <option value="N">Nova (Padrão)</option>
+                <option value="R">Reparada</option>
+                <option value="P">Pátio (Uso Interno)</option>
+            </select>
+        </div>
+        <div>
+            <label for="codigo_oem">Código OEM:</label>
+            <input type="text" id="codigo_oem" name="codigo_oem" placeholder="Opcional">
+
+            <label for="anos_aplicacao">Anos Aplicação:</label>
+            <input type="text" id="anos_aplicacao" name="anos_aplicacao" placeholder="Ex: 98-07, A 09-14">
+
+            <label for="posicao_porta">Posição Porta:</label>
+            <select id="posicao_porta" name="posicao_porta">
+                <option value="">Nenhuma / Não aplicável</option>
+                <option value="DD/FR">Dianteira Direita (DD/FR)</option>
+                <option value="DE/FL">Dianteira Esquerda (DE/FL)</option>
+                <option value="TD/RR">Traseira Direita (TD/RR)</option>
+                <option value="TE/RL">Traseira Esquerda (TE/RL)</option>
+                <option value="PTM/TRK">Porta Malas (PTM/TRK)</option>
+            </select>
+        </div>
+    </div>
+
+    <label for="descricao_peca">Descrição:*</label>
+    <textarea id="descricao_peca" name="descricao_peca" rows="3" required placeholder="Descrição detalhada da peça/variação..."></textarea>
+
+    <hr>
+    <h3>Custos, Preço e Compra (Opcional)</h3>
+     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+        <div>
+            <label for="custo_insumos">Custo Insumos R$:</label>
+            <input type="number" id="custo_insumos" name="custo_insumos" step="0.01" min="0" value="0.00">
+
+            <label for="custo_etiqueta">Custo Etiqueta R$:</label>
+            <input type="number" id="custo_etiqueta" name="custo_etiqueta" step="0.01" min="0" value="0.00">
+        </div>
+        <div>
+             <label for="custo_embalagem">Custo Embalagem R$:</label>
+            <input type="number" id="custo_embalagem" name="custo_embalagem" step="0.01" min="0" value="0.00">
+
+            <label for="impostos_percent">Impostos %:</label>
+            <input type="number" id="impostos_percent" name="impostos_percent" step="0.01" min="0" max="100" value="0.00">
+        </div>
+         <div>
+            <label for="preco_venda">Preço Venda R$:</label>
+            <input type="number" id="preco_venda" name="preco_venda" step="0.01" min="0" value="0.00">
+
+            <label for="data_ultima_compra">Data Últ. Compra:</label>
+            <input type="date" id="data_ultima_compra" name="data_ultima_compra">
+         </div>
+     </div>
+
+     <hr>
+     <h3>Fotos (Máx 5)</h3>
+     <label for="imagens">Selecione os arquivos:</label>
+     <input type="file" id="imagens" name="imagens[]" multiple accept="image/png, image/jpeg, image/webp">
+     {# O name="imagens[]" ajuda alguns backends a receber múltiplos arquivos #}
+     {# O FastAPI com List[UploadFile] = File(...) geralmente lida bem com 'imagens' também #}
+
+    <hr>
+    <button type="submit">✔️ Salvar Nova Variação</button>
+
+</form>
+{% endblock %}
