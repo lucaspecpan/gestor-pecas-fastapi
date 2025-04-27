@@ -6,9 +6,11 @@ pydantic[email]
 jinja2
 python-dotenv
 python-multipart
-htmx-fastapi
+# htmx-fastapi  <-- LINHA REMOVIDA OU COMENTADA
+# --- Bibliotecas para funcionalidades futuras (já incluídas) ---
 Pillow
 qrcode
 python-barcode
 streamlit-antd-components
+# Para importação Excel (se usar .xlsx)
 openpyxl
