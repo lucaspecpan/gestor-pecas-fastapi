@@ -1,16 +1,12 @@
-{% extends "base.html" %} {# Herda a estrutura base #}
+{% extends "base.html" %}
 
 {% block title %}Adicionar Nova Variação de Peça{% endblock %}
 
 {% block content %}
 <h2>Adicionar Nova Variação de Peça</h2>
 
-{% if error_message %}
-    <p class="error">{{ error_message }}</p> {# Exibe erro se o GET /pecas/nova falhar ao buscar montadoras #}
-{% endif %}
+{% if error_message %} <p class="error">{{ error_message }}</p> {% endif %}
 
-{# O formulário envia dados para o endpoint POST /pecas #}
-{# IMPORTANTE: Adicionado enctype="multipart/form-data" para permitir upload de arquivos #}
 <form action="/pecas" method="post" enctype="multipart/form-data">
 
     <h3>Informações Principais</h3>
@@ -35,11 +31,14 @@
             </select>
         </div>
         <div>
+            <label for="categoria">Categoria:</label> {# NOVO CAMPO #}
+            <input type="text" id="categoria" name="categoria" placeholder="Ex: Máquina Vidro, Componente Reparo">
+
             <label for="codigo_oem">Código OEM:</label>
             <input type="text" id="codigo_oem" name="codigo_oem" placeholder="Opcional">
 
             <label for="anos_aplicacao">Anos Aplicação:</label>
-            <input type="text" id="anos_aplicacao" name="anos_aplicacao" placeholder="Ex: 98-07, A 09-14">
+            <input type="text" id="anos_aplicacao" name="anos_aplicacao" placeholder="Ex: 98-07, 2009-2014">
 
             <label for="posicao_porta">Posição Porta:</label>
             <select id="posicao_porta" name="posicao_porta">
@@ -62,32 +61,32 @@
         <div>
             <label for="custo_insumos">Custo Insumos R$:</label>
             <input type="number" id="custo_insumos" name="custo_insumos" step="0.01" min="0" value="0.00">
-
             <label for="custo_etiqueta">Custo Etiqueta R$:</label>
             <input type="number" id="custo_etiqueta" name="custo_etiqueta" step="0.01" min="0" value="0.00">
         </div>
         <div>
              <label for="custo_embalagem">Custo Embalagem R$:</label>
             <input type="number" id="custo_embalagem" name="custo_embalagem" step="0.01" min="0" value="0.00">
-
             <label for="impostos_percent">Impostos %:</label>
             <input type="number" id="impostos_percent" name="impostos_percent" step="0.01" min="0" max="100" value="0.00">
         </div>
          <div>
             <label for="preco_venda">Preço Venda R$:</label>
             <input type="number" id="preco_venda" name="preco_venda" step="0.01" min="0" value="0.00">
-
-            <label for="data_ultima_compra">Data Últ. Compra:</label>
-            <input type="date" id="data_ultima_compra" name="data_ultima_compra">
+             <label for="qtd_para_reparar">Qtd. p/ Reparar:</label> {# NOVO CAMPO #}
+            <input type="number" id="qtd_para_reparar" name="qtd_para_reparar" step="1" min="0" value="0">
          </div>
      </div>
+     <div style="margin-top: 15px;">
+         <label for="data_ultima_compra">Data Últ. Compra:</label>
+         <input type="date" id="data_ultima_compra" name="data_ultima_compra">
+     </div>
+
 
      <hr>
      <h3>Fotos (Máx 5)</h3>
      <label for="imagens">Selecione os arquivos:</label>
      <input type="file" id="imagens" name="imagens[]" multiple accept="image/png, image/jpeg, image/webp">
-     {# O name="imagens[]" ajuda alguns backends a receber múltiplos arquivos #}
-     {# O FastAPI com List[UploadFile] = File(...) geralmente lida bem com 'imagens' também #}
 
     <hr>
     <button type="submit">✔️ Salvar Nova Variação</button>
