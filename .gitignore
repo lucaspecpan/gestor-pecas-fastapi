@@ -1,0 +1,32 @@
+# Arquivos de Ambiente Virtual
+venv/
+.venv/
+*/venv/
+*/.venv/
+env/
+*/env/
+
+# Arquivo de variáveis de ambiente
+.env
+*.env
+
+# Arquivos Python compilados e caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Bancos de dados locais (se usar para teste)
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos gerados (opcional, dependendo do seu fluxo)
+# Descomente se não quiser enviar imagens/etiquetas para o Git
+# /imagens_pecas/
+# /etiquetas_geradas/
+
+# Arquivos de IDEs e SO
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
