@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+pydantic[email]
+jinja2
+python-dotenv
+python-multipart
+htmx-fastapi
+Pillow
+qrcode
+python-barcode
+streamlit-antd-components
+openpyxl
