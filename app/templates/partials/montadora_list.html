@@ -1,0 +1,14 @@
+<div id="montadora-list"> {# ID que o hx-target="montadora-list-container" vai usar para pegar o conteúdo #}
+    {% if montadoras %}
+        <ul>
+            {% for m in montadoras %}
+                <li>
+                    <span>({{ m.cod_montadora }}) - {{ m.nome_montadora }}</span>
+                    <small>ID: {{m.id}} | Cad: {{m.data_cadastro.strftime('%d/%m/%y %H:%M') if m.data_cadastro else '-'}}</small>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>Nenhuma montadora cadastrada ainda.</p>
+    {% endif %}
+</div>
