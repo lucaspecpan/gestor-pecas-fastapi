@@ -1,4 +1,4 @@
-# File: app/main.py (Versão 5.5 - Endpoints Completos e Upload)
+# File: app/main.py (Versão 5.5 - Corrigido SyntaxError)
 
 from fastapi import (FastAPI, Depends, HTTPException, Request, Form, status,
                    UploadFile, File, Query) # Adicionado Query para paginação/busca
@@ -12,14 +12,18 @@ from datetime import date # Para validar data
 # Importa nossos módulos internos
 from . import crud, models, schemas, database, config # Adicionado config
 
-# Cria/Verifica as tabelas no banco de dados
+# Cria/Verifica as tabelas no banco de dados ANTES de iniciar o app
+# É importante que models.py seja importado antes desta linha
 try:
-    print("Verificando/Criando tabelas...")
+    print("Verificando/Criando tabelas do banco de dados...")
+    # Garante que o engine foi criado antes de tentar criar tabelas
     if database.engine:
         models.Base.metadata.create_all(bind=database.engine)
         print("Tabelas OK.")
     else:
-        print("ERRO FATAL: Engine DB não inicializado.")
+        print("ERRO FATAL: Engine do banco de dados não inicializado. Verifique DATABASE_URL no .env")
+        # Considerar sair do app aqui se o engine falhar
+        # import sys; sys.exit(1)
 except Exception as e:
     print(f"ERRO ao verificar/criar tabelas: {e}")
 
@@ -36,8 +40,8 @@ get_db = database.get_db
 
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)
 async def read_root():
-    """Redireciona para a página inicial (Lista de Peças)."""
-    return RedirectResponse(url="/pecas") # Página inicial padrão
+    """Redireciona para a nova página inicial (Lista de Peças)."""
+    return RedirectResponse(url="/pecas") # MUDOU: Página inicial agora é /pecas
 
 # --- Montadoras (Mantidas, mas menos centrais) ---
 @app.get("/montadoras", response_class=HTMLResponse, tags=["Interface Montadoras"])
@@ -107,10 +111,10 @@ async def handle_add_peca(
     custo_etiqueta: Optional[float] = Form(0.0, ge=0),
     custo_embalagem: Optional[float] = Form(0.0, ge=0),
     impostos_percent: Optional[float] = Form(0.0, ge=0, le=100),
-    preco_venda: Optional[float] = Form(0.0, ge=0), # Default 0, pode ser alterado
-    data_ultima_compra: Optional[date] = Form(None), # FastAPI tenta converter para date
+    preco_venda: Optional[float] = Form(0.0, ge=0),
+    data_ultima_compra: Optional[date] = Form(None),
     # Arquivos de Imagem
-    imagens: List[UploadFile] = File([], alias="imagens[]"), # Recebe múltiplos arquivos
+    imagens: List[UploadFile] = File([], alias="imagens[]"),
     db: Session = Depends(get_db)
 ):
     """Processa o formulário, faz upload para Cloudinary e salva a variação da peça."""
@@ -136,7 +140,6 @@ async def handle_add_peca(
                     if secure_url:
                         uploaded_image_urls.append(secure_url)
                     else:
-                        # Se upload_image_to_cloudinary retornar None sem erro HTTP
                         error_msg = (error_msg or "") + f" Falha silenciosa no upload de '{file.filename}'. "
                 except HTTPException as e: # Captura erro HTTP do upload (ex: Cloudinary não config)
                      error_msg = (error_msg or "") + f" Erro upload '{file.filename}': {e.detail}. "
@@ -168,7 +171,7 @@ async def handle_add_peca(
     if not error_msg: # Só tenta salvar se não houve erro de upload/validação grave
         try:
             peca_criada = crud.create_peca_variacao(
-                db=db, peca_data=peca_schema, cod_montadora=cod_montadora, # Passa cod_montadora separado
+                db=db, peca_data=peca_schema, cod_montadora=cod_montadora,
                 image_urls=uploaded_image_urls )
             success_msg = f"Variação SKU {peca_criada.sku_variacao} criada com {len(uploaded_image_urls)} imagem(ns)!"
         except ValueError as e: # Erro de validação ou DB do CRUD
@@ -182,8 +185,6 @@ async def handle_add_peca(
     response_msg = templates.TemplateResponse( request=request, name="partials/messages.html", context=context )
 
     # Diz ao HTMX para recarregar a página toda após a resposta ser processada
-    # Isso limpa o formulário e garante que a lista (se visível) seja atualizada.
-    # Poderíamos usar alvos mais específicos se a UI fosse mais complexa.
     response_msg.headers["HX-Refresh"] = "true"
     return response_msg
 
@@ -192,9 +193,9 @@ async def handle_add_peca(
 async def view_pecas_list(
     request: Request,
     db: Session = Depends(get_db),
-    skip: int = Query(0, ge=0), # Parâmetro para paginação
-    limit: int = Query(25, ge=1, le=100), # Parâmetro para paginação
-    search: Optional[str] = Query(None, min_length=2, max_length=50) # Parâmetro de busca
+    skip: int = Query(0, ge=0),
+    limit: int = Query(25, ge=1, le=100),
+    search: Optional[str] = Query(None, min_length=2, max_length=50)
 ):
     """Renderiza a página HTML com a lista/busca de peças/variações."""
     pecas = []
@@ -208,48 +209,37 @@ async def view_pecas_list(
         print(f"Erro ao buscar peças: {e}")
         error_msg = "Erro ao carregar lista de peças."
 
-    # Passa os parâmetros de paginação e busca para o template poder usá-los (ex: em links de próxima/anterior página)
-    context = {
-        "pecas": pecas,
-        "search_term": search,
-        "skip": skip,
-        "limit": limit,
-        "error_message": error_msg
-    }
+    context = { "request": request, "pecas": pecas, "search_term": search,
+                "skip": skip, "limit": limit, "error_message": error_msg }
     return templates.TemplateResponse( request=request, name="pecas_list.html", context=context )
 
 
 # --- Estoque (Endpoints aqui depois) ---
 @app.get("/estoque", response_class=HTMLResponse, tags=["Interface Estoque"])
 async def view_estoque_page(request: Request):
-     # Por enquanto, apenas renderiza uma página simples
-     return templates.TemplateResponse(request=request, name="estoque.html", context={})
+     # Precisa criar o template estoque.html
+     return templates.TemplateResponse(request=request, name="placeholder.html", context={"page_title": "Estoque"})
 
 # --- Kits (Endpoints aqui depois) ---
 @app.get("/kits", response_class=HTMLResponse, tags=["Interface Kits"])
 async def view_kits_page(request: Request):
-     # Por enquanto, apenas renderiza uma página simples
-     return templates.TemplateResponse(request=request, name="kits.html", context={})
-
+     # Precisa criar o template kits.html
+     return templates.TemplateResponse(request=request, name="placeholder.html", context={"page_title": "Kits"})
 
 # --- Importar/Exportar (Endpoints aqui depois) ---
 @app.get("/importar-exportar", response_class=HTMLResponse, tags=["Interface Import/Export"])
 async def view_import_export_page(request: Request):
-     # Por enquanto, apenas renderiza uma página simples
-     return templates.TemplateResponse(request=request, name="import_export.html", context={})
-
+     # Precisa criar o template import_export.html
+     return templates.TemplateResponse(request=request, name="placeholder.html", context={"page_title": "Importar/Exportar"})
 
 # --- Ajuda (Endpoints aqui depois) ---
 @app.get("/ajuda", response_class=HTMLResponse, tags=["Interface Ajuda"])
 async def view_help_page(request: Request):
-     # Por enquanto, apenas renderiza uma página simples
-     return templates.TemplateResponse(request=request, name="ajuda.html", context={})
+     # Precisa criar o template ajuda.html
+     return templates.TemplateResponse(request=request, name="placeholder.html", context={"page_title": "Ajuda"})
 
-```
-5.  Commit:
-    * Mensagem: "Feat: Implement Peca endpoints (GET form, POST create with upload, GET list)".
-    * Clique em **"Commit changes"**.
+# Placeholder para páginas não implementadas
+@app.get("/placeholder", response_class=HTMLResponse, include_in_schema=False)
+async def view_placeholder(request: Request, page_title: str = "Em Construção"):
+     return templates.TemplateResponse(request=request, name="placeholder.html", context={"page_title": page_title})
 
-**--> Por favor, confirme que você atualizou o `main.py` no GitHub com este novo código.**
-
-Depois disso, o último passo antes de testar será criar os arquivos HTML para as novas páginas de Peças (`pecas_add.html` e `pecas_list.html
