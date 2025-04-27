@@ -5,70 +5,65 @@
 {% block content %}
 <h2>Lista de Peças / Variações</h2>
 
-{# Formulário de Busca (envia via GET para a mesma página) #}
-<form action="/pecas" method="get" style="background-color: #e9ecef;">
-    <label for="search">Buscar Peça:</label>
-    <div style="display: flex; gap: 10px;">
-        <input type="text" id="search" name="search" placeholder="SKU, Descrição, OEM..." value="{{ search_term or '' }}" style="flex-grow: 1;">
-        <button type="submit">Buscar</button>
+{# Formulário de Busca #}
+<form action="/pecas" method="get" style="background-color: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+    <label for="search" style="margin-bottom: 5px;">Buscar Peça:</label>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <input type="text" id="search" name="search" placeholder="SKU, Descrição, OEM, Categoria..." value="{{ search_term or '' }}" style="flex-grow: 1; margin-bottom: 0;">
+        <button type="submit" style="padding: 10px 15px;">Buscar</button>
         {% if search_term %}
-        <a href="/pecas" style="padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px;">Limpar</a>
+        <a href="/pecas" style="padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; white-space: nowrap;">Limpar Busca</a>
         {% endif %}
     </div>
 </form>
 
-{# Botão para ir para a página de adicionar nova peça #}
+{# Botões de Ação #}
 <div style="margin-bottom: 20px; text-align: right;">
-    <a href="/pecas/nova" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px;">+ Adicionar Nova Variação</a>
+    <a href="/pecas/nova" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px;">+ Adicionar Variação</a>
     <a href="/montadoras" style="padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-left: 10px;">Gerenciar Montadoras</a>
-
 </div>
 
+{# Mensagem de Erro #}
+{% if error_message %} <p class="error">{{ error_message }}</p> {% endif %}
 
-{# Exibe erro se houver problema ao carregar a lista #}
-{% if error_message %}
-    <p class="error">{{ error_message }}</p>
-{% endif %}
-
-{# Tabela com a lista de peças #}
-<div style="overflow-x: auto;"> {# Permite rolagem horizontal em telas pequenas #}
+{# Tabela #}
+<div style="overflow-x: auto;">
     <table style="width: 100%; border-collapse: collapse;">
         <thead>
-            <tr style="background-color: #e9ecef; border-bottom: 2px solid #ccc;">
+            <tr style="background-color: #dee2e6; border-bottom: 2px solid #adb5bd;">
                 <th style="padding: 10px; text-align: left;">SKU Variação</th>
                 <th style="padding: 10px; text-align: left;">Descrição</th>
+                <th style="padding: 10px; text-align: left;">Categoria</th> {# NOVA COLUNA #}
                 <th style="padding: 10px; text-align: left;">SKU Base</th>
                 <th style="padding: 10px; text-align: left;">OEM</th>
                 <th style="padding: 10px; text-align: center;">Estoque</th>
                 <th style="padding: 10px; text-align: center;">P/ Reparar</th>
                 <th style="padding: 10px; text-align: right;">Preço Venda</th>
-                <th style="padding: 10px; text-align: center;">Ações</th> {# Coluna para botões futuros #}
+                <th style="padding: 10px; text-align: center;">Ações</th>
             </tr>
         </thead>
         <tbody>
             {% for peca in pecas %}
-            <tr>
+            <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 8px;">{{ peca.sku_variacao }}</td>
-                <td style="padding: 8px;">{{ peca.descricao_peca | truncate(60) }}</td> {# Limita tamanho da descrição #}
+                <td style="padding: 8px;">{{ peca.descricao_peca | truncate(50) }}</td> {# Limita tamanho #}
+                <td style="padding: 8px;">{{ peca.categoria or '-' }}</td> {# EXIBE CATEGORIA #}
                 <td style="padding: 8px;">{{ peca.codigo_base }}</td>
                 <td style="padding: 8px;">{{ peca.codigo_oem or '-' }}</td>
                 <td style="padding: 8px; text-align: center;">{{ peca.quantidade_estoque }}</td>
                 <td style="padding: 8px; text-align: center;">{{ peca.qtd_para_reparar }}</td>
                 <td style="padding: 8px; text-align: right;">R$ {{ "%.2f"|format(peca.preco_venda|float) if peca.preco_venda is not none else '-' }}</td>
                 <td style="padding: 8px; text-align: center;">
-                    {# Adicionar botões de Editar/Detalhes/Etiqueta aqui depois #}
-                    <a href="#" title="Ver Detalhes (Não implementado)">👁️</a>
-                    <a href="#" title="Editar (Não implementado)">✏️</a>
+                    {# Adicionar links/botões reais depois #}
+                    <a href="#" title="Ver Detalhes (Futuro)">👁️</a>
+                    <a href="#" title="Editar (Futuro)">✏️</a>
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="8" style="padding: 20px; text-align: center; font-style: italic;">
-                    {% if search_term %}
-                        Nenhuma peça encontrada para "{{ search_term }}".
-                    {% else %}
-                        Nenhuma peça cadastrada ainda. <a href="/pecas/nova">Adicionar a primeira?</a>
-                    {% endif %}
+                <td colspan="9" style="padding: 20px; text-align: center; font-style: italic;"> {# Ajustado colspan #}
+                    {% if search_term %} Nenhuma peça encontrada para "{{ search_term }}".
+                    {% else %} Nenhuma peça cadastrada. <a href="/pecas/nova">Adicionar?</a> {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -76,15 +71,7 @@
     </table>
 </div>
 
-{# Paginação (Simples - Adicionar lógica completa depois) #}
-{# <div style="margin-top: 20px; text-align: center;">
-    {% if skip > 0 %}
-        <a href="/pecas?skip={{ [0, skip - limit] | max }}&limit={{ limit }}{% if search_term %}&search={{ search_term }}{% endif %}">Anterior</a>
-    {% endif %}
-    <span>Página {{ (skip // limit) + 1 }}</span>
-    {% if pecas | length == limit %}
-         <a href="/pecas?skip={{ skip + limit }}&limit={{ limit }}{% if search_term %}&search={{ search_term }}{% endif %}">Próxima</a>
-    {% endif %}
-</div> #}
+{# Paginação (Placeholder) #}
+{# <div style="margin-top: 20px; text-align: center;"> ... </div> #}
 
 {% endblock %}
