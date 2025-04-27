@@ -1,0 +1,28 @@
+{% extends "base.html" %} {# Herda a estrutura do base.html #}
+
+{% block title %}Gerenciar Montadoras{% endblock %} {# Define o título da página #}
+
+{% block content %} {# Define o conteúdo principal #}
+<h2>Gerenciar Montadoras</h2>
+
+<form hx-post="/montadoras"                {# Envia dados para o endpoint /montadoras via POST #}
+      hx-target="#montadora-list-container"  {# Onde colocar a resposta do servidor #}
+      hx-swap="innerHTML"                  {# Como colocar a resposta (substitui o conteúdo) #}
+      hx-target-error="#messages"            {# Onde colocar mensagens de erro do servidor #}
+      hx-indicator="#loading-indicator-montadora"> {# Mostra indicador durante a requisição #}
+
+    <label for="nome_montadora">Nova Montadora:</label>
+    <input type="text" id="nome_montadora" name="nome_montadora" required placeholder="Ex: VOLKSWAGEN">
+
+    <button type="submit">Adicionar</button>
+    <span id="loading-indicator-montadora" class="htmx-indicator"> Salvando...</span>
+</form>
+
+<hr>
+
+<h3>Montadoras Cadastradas</h3>
+<div id="montadora-list-container">
+    {% include 'partials/montadora_list.html' %} {# Inclui a lista inicial ao carregar a página #}
+</div>
+
+{% endblock %}
