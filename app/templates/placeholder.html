@@ -1,0 +1,10 @@
+{% extends "base.html" %} {# Herda a estrutura base #}
+
+{% block title %}{{ page_title | default('Em Construção') }}{% endblock %} {# Usa o título passado pelo main.py #}
+
+{% block content %}
+    <h2>{{ page_title | default('Em Construção') }}</h2>
+    <hr>
+    <p><i>Esta seção ainda está em desenvolvimento. Volte em breve!</i></p>
+    <p><a href="/pecas">Voltar para a Lista de Peças</a></p> {# Link para voltar #}
+{% endblock %}
