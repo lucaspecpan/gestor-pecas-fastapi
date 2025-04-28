@@ -1,4 +1,4 @@
-# File: app/main.py (Versão 5.15 - Chama init_db)
+# File: app/main.py (Versão 5.16 - Chama create_all)
 
 from fastapi import (FastAPI, Depends, HTTPException, Request, Form, status,
                    UploadFile, File, Query)
@@ -11,24 +11,34 @@ from datetime import date
 import os
 
 # Importa nossos módulos internos
-# A ordem aqui é importante. database define Base, models usa Base.
-from app import database, models, schemas, crud, config
+# database DEVE ser importado antes de models se models usar Base de database
+from app import database
+# Agora importa models, que usa a Base definida em database
+from app import models
+# Importa o resto
+from app import schemas, crud, config
 
-# --- Inicializa o Banco de Dados (Cria tabelas se não existirem) ---
-# Chama a função centralizada em database.py
-database.init_db()
-# -------------------------------------------------------------------
+# --- Cria as Tabelas no Banco de Dados (Centralizado Aqui) ---
+# Isso garante que Base já conhece todos os modelos definidos em models.py
+try:
+    print("Verificando/Criando tabelas via main.py...")
+    if database.engine:
+        # A Base importada de database já foi populada quando models.py foi importado
+        database.Base.metadata.create_all(bind=database.engine)
+        print("Tabelas OK.")
+    else:
+        print("ERRO: Engine do banco não inicializada. Tabelas não criadas.")
+except Exception as e:
+    print(f"ERRO ao verificar/criar tabelas via main.py: {e}")
+# --------------------------------------------------------------
 
 # --- Configuração do App FastAPI ---
-app = FastAPI(title="Gestor de Peças Pro++ API v5.15")
+app = FastAPI(title="Gestor de Peças Pro++ API v5.16")
 templates = Jinja2Templates(directory="app/templates")
 # app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-# Dependência para obter sessão do DB
-get_db = database.get_db
+get_db = database.get_db # Atalho para a função get_db
 
 # --- Rotas HTML e API ---
-
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)
 async def read_root(): return RedirectResponse(url="/pecas")
 
@@ -97,10 +107,9 @@ async def handle_add_peca(
             "posicao_porta": posicao_porta, "quantidade_estoque": quantidade_estoque, "preco_venda": preco_venda,
             "custo_ultima_compra": custo_ultima_compra, "aliquota_imposto_percent": aliquota_imposto_percent,
             "custo_estimado_adicional": custo_estimado_adicional, "data_ultima_compra": data_ultima_compra,
-            "cod_montadora": cod_montadora, "nome_modelo": nome_modelo,
-            "qtd_para_reparar": 0 # Campo não está mais no form, mas schema pode esperar? Garantir default.
+            "cod_montadora": cod_montadora, "nome_modelo": nome_modelo
         }
-        peca_schema_data_clean = {k: v for k, v in peca_schema_data.items() if v is not None or k in schemas.PecaCreate.__annotations__}
+        peca_schema_data_clean = {k: v for k, v in peca_schema_data.items() if v is not None or k in schemas.PecaCreate.model_fields}
         peca_schema = schemas.PecaCreate(**peca_schema_data_clean)
 
     except Exception as e_val:
@@ -125,8 +134,8 @@ async def view_pecas_list( request: Request, db: Session = Depends(get_db), skip
                            limit: int = Query(25, ge=1, le=100), search: Optional[str] = Query(None) ):
     pecas = []; error_msg = None
     try:
-        if search is not None and len(search) >= 2: pecas = crud.search_pecas_crud(db, search_term=search, skip=skip, limit=limit)
-        elif search is None or search == "": pecas = crud.get_pecas_list(db, skip=skip, limit=limit)
+        if search is not None and len(search) >= 1: pecas = crud.search_pecas_crud(db, search_term=search, skip=skip, limit=limit)
+        else: pecas = crud.get_pecas_list(db, skip=skip, limit=limit)
     except Exception as e: print(f"Erro buscar peças: {e}"); error_msg = "Erro carregar peças."
     context = { "request": request, "pecas": pecas, "search_term": search, "skip": skip, "limit": limit, "error_message": error_msg }
     return templates.TemplateResponse( request=request, name="pecas_list.html", context=context )
