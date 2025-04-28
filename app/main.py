@@ -1,4 +1,4 @@
-# File: app/main.py (Versão 5.17 - Chama create_all)
+# File: app/main.py (Versão 5.18 - Sem create_all)
 
 from fastapi import (FastAPI, Depends, HTTPException, Request, Form, status,
                    UploadFile, File, Query)
@@ -11,33 +11,30 @@ from datetime import date
 import os
 
 # Importa nossos módulos internos
-# Ordem: database primeiro para definir Base, depois models para usar Base
+# Ordem é importante
 from app import database
-from app import models # Importa models APÓS database
+from app import models # Precisa ser importado para que as rotas conheçam os modelos
 from app import schemas, crud, config
 
-# --- Cria as Tabelas no Banco de Dados (Centralizado Aqui) ---
-# Executa ANTES de definir as rotas, quando o módulo é carregado
-try:
-    print("Verificando/Criando tabelas via main.py...")
-    if database.engine:
-        # A Base em database.Base já conhece todas as tabelas definidas em models.py
-        database.Base.metadata.create_all(bind=database.engine)
-        print("Tabelas OK.")
-    else:
-        print("ERRO: Engine do banco não inicializada. Tabelas não criadas.")
-except Exception as e:
-    print(f"ERRO ao verificar/criar tabelas via main.py: {e}")
-# --------------------------------------------------------------
+# REMOVIDO: A criação das tabelas não será feita aqui ao iniciar o app.
+#          Isso deve ser feito pelo script de seed ou por uma ferramenta de migração.
+# try:
+#     print("Verificando/Criando tabelas via main.py...")
+#     if database.engine:
+#         database.Base.metadata.create_all(bind=database.engine)
+#         print("Tabelas OK.")
+#     else:
+#         print("ERRO: Engine do banco não inicializada. Tabelas não criadas.")
+# except Exception as e:
+#     print(f"ERRO ao verificar/criar tabelas via main.py: {e}")
 
 # --- Configuração do App FastAPI ---
-# A criação do app vem DEPOIS da tentativa de criar tabelas
-app = FastAPI(title="Gestor de Peças Pro++ API v5.17")
+app = FastAPI(title="Gestor de Peças Pro++ API v5.18")
 templates = Jinja2Templates(directory="app/templates")
 # app.mount("/static", StaticFiles(directory="app/static"), name="static")
 get_db = database.get_db # Atalho para a função get_db
 
-# --- Rotas HTML e API (Sem alterações do v5.15) ---
+# --- Rotas HTML e API (Sem alterações funcionais aqui) ---
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)
 async def read_root(): return RedirectResponse(url="/pecas")
 
@@ -46,7 +43,7 @@ async def read_root(): return RedirectResponse(url="/pecas")
 async def view_montadoras_page(request: Request, db: Session = Depends(get_db), success_msg: Optional[str]=None, error_msg: Optional[str]=None):
     montadoras=[]; err_fetch=None
     try: montadoras = crud.get_montadoras(db, limit=500)
-    except Exception as e: err_fetch = "Erro carregar montadoras."
+    except Exception as e: err_fetch = f"Erro carregar montadoras: {e}"
     return templates.TemplateResponse( request=request, name="montadoras.html", context={"montadoras": montadoras, "success_message":success_msg, "error_message": error_msg or err_fetch} )
 
 @app.post("/montadoras", tags=["Interface Montadoras"])
@@ -54,7 +51,7 @@ async def handle_add_montadora( request: Request, nome_montadora: str = Form(...
     err_msg=None; succ_msg=None; montadoras=[]
     try: mont_c = crud.create_montadora(db, montadora=schemas.MontadoraCreate(nome_montadora=nome_montadora)); succ_msg = f"'{mont_c.nome_montadora}' (Cód: {mont_c.cod_montadora}) criada!"
     except ValueError as e: err_msg = str(e)
-    except Exception as e: err_msg = "Erro inesperado."
+    except Exception as e: err_msg = f"Erro inesperado: {e}"
     try: montadoras = crud.get_montadoras(db, limit=500)
     except Exception: err_msg = err_msg or "Erro recarregar lista."
     ctx = {"montadoras": montadoras, "error_message": err_msg, "success_message": succ_msg}
@@ -70,7 +67,7 @@ async def view_add_peca_form(request: Request, db: Session = Depends(get_db)):
     try:
         montadoras = crud.get_montadoras(db, limit=500)
         if not montadoras: err_msg = "Cadastre montadoras primeiro."
-    except Exception as e: print(f"Erro form peças: {e}"); err_msg = "Erro carregar montadoras."
+    except Exception as e: print(f"Erro form peças: {e}"); err_msg = f"Erro carregar montadoras: {e}"
     portas_opts = ["DD/FR", "DE/FL", "TD/RR", "TE/RL", "PTM/TRK"]
     return templates.TemplateResponse( request=request, name="pecas_add.html", context={"montadoras": montadoras, "error_message": err_msg, "portas_opts": portas_opts} )
 
