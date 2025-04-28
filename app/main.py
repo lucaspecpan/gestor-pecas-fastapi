@@ -1,4 +1,4 @@
-# File: app/main.py (Versão 5.16 - Chama create_all)
+# File: app/main.py (Versão 5.17 - Chama create_all)
 
 from fastapi import (FastAPI, Depends, HTTPException, Request, Form, status,
                    UploadFile, File, Query)
@@ -11,19 +11,17 @@ from datetime import date
 import os
 
 # Importa nossos módulos internos
-# database DEVE ser importado antes de models se models usar Base de database
+# Ordem: database primeiro para definir Base, depois models para usar Base
 from app import database
-# Agora importa models, que usa a Base definida em database
-from app import models
-# Importa o resto
+from app import models # Importa models APÓS database
 from app import schemas, crud, config
 
 # --- Cria as Tabelas no Banco de Dados (Centralizado Aqui) ---
-# Isso garante que Base já conhece todos os modelos definidos em models.py
+# Executa ANTES de definir as rotas, quando o módulo é carregado
 try:
     print("Verificando/Criando tabelas via main.py...")
     if database.engine:
-        # A Base importada de database já foi populada quando models.py foi importado
+        # A Base em database.Base já conhece todas as tabelas definidas em models.py
         database.Base.metadata.create_all(bind=database.engine)
         print("Tabelas OK.")
     else:
@@ -33,12 +31,13 @@ except Exception as e:
 # --------------------------------------------------------------
 
 # --- Configuração do App FastAPI ---
-app = FastAPI(title="Gestor de Peças Pro++ API v5.16")
+# A criação do app vem DEPOIS da tentativa de criar tabelas
+app = FastAPI(title="Gestor de Peças Pro++ API v5.17")
 templates = Jinja2Templates(directory="app/templates")
 # app.mount("/static", StaticFiles(directory="app/static"), name="static")
 get_db = database.get_db # Atalho para a função get_db
 
-# --- Rotas HTML e API ---
+# --- Rotas HTML e API (Sem alterações do v5.15) ---
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)
 async def read_root(): return RedirectResponse(url="/pecas")
 
