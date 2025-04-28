@@ -1,4 +1,4 @@
-# File: app/crud.py (Versão 5.15 - Refatorado Final)
+# File: app/crud.py (Versão 5.14 - Correção Finalíssima Try/Except)
 from sqlalchemy.orm import Session, joinedload, load_only, selectinload
 from sqlalchemy import func, exc, select, update, delete
 from typing import List, Optional, Dict, Any
@@ -9,66 +9,61 @@ from fastapi import UploadFile, HTTPException
 from datetime import date
 from barcode import EAN13
 
-# Importa de forma absoluta
+# Importa de forma absoluta a partir da raiz do pacote 'app'
 from app import models, schemas, config
 
 # --- Função Auxiliar EAN13 ---
 def generate_ean13(internal_id: int) -> Optional[str]:
     if not internal_id: return None
-    try: base=f"290{internal_id:09d}"[:12]; ean=EAN13(base); return ean.ean13
-    except Exception as e: print(f"AVISO: Erro EAN ID {internal_id}: {e}"); return None
+    try: base_number_str = f"290{internal_id:09d}"[:12]; ean = EAN13(base_number_str); return ean.ean13
+    except Exception as e: print(f"AVISO: Erro gerar EAN p/ ID {internal_id}: {e}"); return None
 
 # --- CRUD Montadoras ---
-def get_montadora_by_name(db: Session, nome: str) -> Optional[models.Montadora]:
-    return db.query(models.Montadora).filter(func.upper(models.Montadora.nome_montadora) == nome.upper()).first()
-def get_montadora_by_cod(db: Session, cod: int) -> Optional[models.Montadora]:
-     return db.query(models.Montadora).filter(models.Montadora.cod_montadora == cod).first()
-def get_montadora_by_id(db: Session, id: int) -> Optional[models.Montadora]:
-    return db.query(models.Montadora).filter(models.Montadora.id == id).first()
+def get_montadora_by_name(db: Session, nome_montadora: str) -> Optional[models.Montadora]:
+    return db.query(models.Montadora).filter(func.upper(models.Montadora.nome_montadora) == nome_montadora.upper()).first()
+def get_montadora_by_cod(db: Session, cod_montadora: int) -> Optional[models.Montadora]:
+     return db.query(models.Montadora).filter(models.Montadora.cod_montadora == cod_montadora).first()
+def get_montadora_by_id(db: Session, montadora_id: int) -> Optional[models.Montadora]:
+    return db.query(models.Montadora).filter(models.Montadora.id == montadora_id).first()
 def get_montadoras(db: Session, skip: int = 0, limit: int = 100) -> List[models.Montadora]:
     return db.query(models.Montadora).order_by(models.Montadora.cod_montadora).offset(skip).limit(limit).all()
 def create_montadora(db: Session, montadora: schemas.MontadoraCreate) -> models.Montadora:
-    nome_up = montadora.nome_montadora # Schema já fez upper
-    if get_montadora_by_name(db, nome_montadora=nome_up): raise ValueError(f"Montadora '{nome_up}' já existe.")
-    max_c = db.query(func.max(models.Montadora.cod_montadora)).scalar(); next_c = 101 if max_c is None or max_c < 101 else max_c + 1
-    try: db_m=models.Montadora(cod_montadora=next_c, nome_montadora=nome_up); db.add(db_m); db.commit(); db.refresh(db_m); return db_m
+    nome_upper = montadora.nome_montadora
+    if get_montadora_by_name(db, nome_montadora=nome_upper): raise ValueError(f"Montadora '{nome_upper}' já existe.")
+    max_cod = db.query(func.max(models.Montadora.cod_montadora)).scalar(); next_cod = 101 if max_cod is None or max_cod < 101 else max_cod + 1
+    try: db_m = models.Montadora(cod_montadora=next_cod, nome_montadora=nome_upper); db.add(db_m); db.commit(); db.refresh(db_m); return db_m
     except exc.SQLAlchemyError as e: db.rollback(); raise ValueError(f"Erro DB: {e}")
 
 # --- CRUD ModeloVeiculo ---
 def get_modelo_by_nome_and_montadora(db: Session, nome_modelo: str, cod_montadora: int) -> Optional[models.ModeloVeiculo]:
     return db.query(models.ModeloVeiculo).filter(models.ModeloVeiculo.cod_montadora == cod_montadora, func.upper(models.ModeloVeiculo.nome_modelo) == nome_modelo.upper()).first()
 def get_next_modelo_sequencial(db: Session, cod_montadora: int) -> int:
-    max_s = db.query(func.max(models.ModeloVeiculo.cod_sequencial_modelo)).filter(models.ModeloVeiculo.cod_montadora == cod_montadora).scalar()
-    return (max_s or 0) + 1
+    max_seq = db.query(func.max(models.ModeloVeiculo.cod_sequencial_modelo)).filter(models.ModeloVeiculo.cod_montadora == cod_montadora).scalar()
+    return (max_seq or 0) + 1
 def get_or_create_modelo(db: Session, nome_modelo: str, cod_montadora: int) -> models.ModeloVeiculo:
-    nome_up = nome_modelo.strip().upper();
-    if not nome_up: raise ValueError("Nome modelo vazio.")
+    nome_upper = nome_modelo.strip().upper();
+    if not nome_upper: raise ValueError("Nome modelo vazio.")
     db_mont = get_montadora_by_cod(db, cod_montadora=cod_montadora);
     if not db_mont: raise ValueError(f"Montadora {cod_montadora} não encontrada.")
-    db_mod = get_modelo_by_nome_and_montadora(db, nome_modelo=nome_up, cod_montadora=cod_montadora)
+    db_mod = get_modelo_by_nome_and_montadora(db, nome_modelo=nome_upper, cod_montadora=cod_montadora)
     if db_mod: return db_mod
     else:
         try:
-            next_s = get_next_modelo_sequencial(db, cod_montadora=cod_montadora)
-            n_mod = models.ModeloVeiculo( cod_montadora=cod_montadora, nome_modelo=nome_up, cod_sequencial_modelo=next_s )
-            db.add(n_mod); db.commit(); db.refresh(n_mod); print(f"Novo modelo: {n_mod.nome_modelo} (Seq:{next_s}) p/ Mont {cod_montadora}"); return n_mod
+            next_seq = get_next_modelo_sequencial(db, cod_montadora=cod_montadora)
+            novo_mod = models.ModeloVeiculo( cod_montadora=cod_montadora, nome_modelo=nome_upper, cod_sequencial_modelo=next_seq )
+            db.add(novo_mod); db.commit(); db.refresh(novo_mod); print(f"Novo modelo: {novo_mod.nome_modelo} (Seq:{next_seq}) p/ Mont {cod_montadora}"); return novo_mod
         except exc.SQLAlchemyError as e:
-            db.rollback(); print(f"Erro DB criar modelo {nome_up}: {e}")
-            db_mod_r = get_modelo_by_nome_and_montadora(db, nome_modelo=nome_up, cod_montadora=cod_montadora)
-            if db_mod_r: return db_mod_r
-            raise ValueError(f"Erro interno criar/buscar modelo '{nome_up}'.")
+            db.rollback(); print(f"Erro DB criar modelo {nome_upper}: {e}")
+            db_mod_retry = get_modelo_by_nome_and_montadora(db, nome_modelo=nome_upper, cod_montadora=cod_montadora)
+            if db_mod_retry: return db_mod_retry
+            raise ValueError(f"Erro interno criar/buscar modelo '{nome_upper}'.")
 
 # --- CRUD Peças ---
 def get_next_cod_final_item(db: Session, cod_montadora: int, modelo_id: int, nome_item: str) -> int:
-    """Busca o próximo sequencial FFF (999-000) para Montadora/Modelo ID/NomeItem."""
     nome_item_upper = nome_item.strip().upper();
     if not nome_item_upper: raise ValueError("Nome Item vazio.")
     try:
-        min_cod = db.query(func.min(models.Peca.cod_final_item))\
-                  .filter(models.Peca.cod_montadora == cod_montadora,
-                          models.Peca.cod_modelo == modelo_id, # Filtra pelo ID do modelo
-                          func.upper(models.Peca.nome_item) == nome_item_upper)\
-                  .scalar()
+        min_cod = db.query(func.min(models.Peca.cod_final_item)).filter(models.Peca.cod_montadora == cod_montadora, models.Peca.cod_modelo == modelo_id, func.upper(models.Peca.nome_item) == nome_item_upper).scalar()
         if min_cod is None: return 999
         elif min_cod <= 0: return -1
         else: return min_cod - 1
@@ -98,46 +93,25 @@ def get_pecas_list(db: Session, skip: int = 0, limit: int = 100) -> List[models.
     except exc.SQLAlchemyError as e: print(f"Erro DB listar: {e}"); return []
 
 def create_peca_variacao(db: Session, peca_data: schemas.PecaCreate, image_urls: List[str] = []) -> models.Peca:
-    """Cria o registro da peça, incluindo busca/criação de modelo e nome_item."""
-    # 1. Busca/Cria Modelo
     db_modelo = get_or_create_modelo(db, nome_modelo=peca_data.nome_modelo, cod_montadora=peca_data.cod_montadora)
-    cod_modelo_id = db_modelo.id
-    cod_seq_mod = db_modelo.cod_sequencial_modelo
-
-    # 2. Obter próximo FFF para Montadora/Modelo/NomeItem
+    cod_modelo_id = db_modelo.id; cod_seq_mod = db_modelo.cod_sequencial_modelo
     next_fff = get_next_cod_final_item(db, peca_data.cod_montadora, cod_modelo_id, peca_data.nome_item)
     if next_fff < 0: raise ValueError(f"Limite/Erro({next_fff}) cód item p/ M{peca_data.cod_montadora}/Mod{cod_seq_mod:02d}/{peca_data.nome_item}.")
-
-    # 3. Construir Códigos
     codigo_base_sku = f"{peca_data.cod_montadora:03d}{cod_seq_mod:02d}{next_fff:03d}"
     sufixo = peca_data.tipo_variacao if peca_data.tipo_variacao in ['R', 'P'] else None
     sku_variacao_final = codigo_base_sku + (sufixo if sufixo else "")
-
-    # 4. Verificar Duplicidade SKU Variação
     if get_peca_by_sku_variacao(db, sku_variacao=sku_variacao_final): raise ValueError(f"SKU Variação '{sku_variacao_final}' já existe.")
 
-    # 5. Preparar dados para o modelo Peca
     peca_db_data = peca_data.model_dump(exclude={"tipo_variacao", "cod_montadora", "nome_modelo", "quantidade_estoque"})
-    # Garante defaults e formatação
-    peca_db_data['preco_venda'] = peca_db_data.get('preco_venda') # Obrigatório pelo schema
+    peca_db_data['preco_venda'] = peca_db_data.get('preco_venda')
     if isinstance(peca_db_data.get('data_ultima_compra'), date): peca_db_data['data_ultima_compra'] = peca_db_data['data_ultima_compra'].strftime('%Y-%m-%d')
     elif peca_db_data.get('data_ultima_compra') == '': peca_db_data['data_ultima_compra'] = None
-    # Uppercase já deve ter sido feito pelo schema, mas pode garantir aqui se necessário
+    for key in ['nome_item', 'descricao_peca', 'codigo_oem', 'anos_aplicacao', 'posicao_porta', 'categoria']:
+        if key in peca_db_data and isinstance(peca_db_data[key], str): peca_db_data[key] = peca_db_data[key].upper()
 
-    # 6. Criar instância Peca
-    db_peca = models.Peca(
-        **peca_db_data, # Inclui custos, descrição, oem, etc.
-        sku_variacao=sku_variacao_final,
-        codigo_base=codigo_base_sku,
-        sufixo_variacao=sufixo,
-        cod_montadora=peca_data.cod_montadora,
-        cod_modelo=cod_modelo_id, # FK para modelos_veiculo.id
-        nome_item=peca_data.nome_item, # Nome do item principal
-        cod_final_item=next_fff, # Sequencial FFF
-        quantidade_estoque = peca_data.quantidade_estoque # Estoque inicial
-    )
-
-    # 7. Salvar no DB
+    db_peca = models.Peca( **peca_db_data, sku_variacao=sku_variacao_final, codigo_base=codigo_base_sku, sufixo_variacao=sufixo,
+                           cod_montadora=peca_data.cod_montadora, cod_modelo=cod_modelo_id, cod_final_item=next_fff,
+                           quantidade_estoque = peca_data.quantidade_estoque )
     try:
         db.add(db_peca); db.flush(); peca_id = db_peca.id
         if not peca_id: raise ValueError("Falha obter ID peça.")
@@ -151,16 +125,11 @@ def create_peca_variacao(db: Session, peca_data: schemas.PecaCreate, image_urls:
     except exc.SQLAlchemyError as e: db.rollback(); print(f"Erro SQLA criar peça: {e}"); raise ValueError(f"Erro interno salvar variação.")
 
 def update_peca_variacao(db: Session, peca_id: int, peca_update_data: schemas.PecaBase) -> Optional[models.Peca]:
-    """Atualiza dados de uma variação (não altera identificadores chave)."""
     db_peca = get_peca_by_id(db, peca_id)
     if not db_peca: return None
-    # Exclui campos que não devem ser alterados ou são tratados separadamente
-    update_data = peca_update_data.model_dump(exclude_unset=True,
-                                               exclude={'tipo_variacao', 'cod_modelo', 'nome_item', 'quantidade_estoque'})
-    # Garante uppercase
+    update_data = peca_update_data.model_dump(exclude_unset=True, exclude={'tipo_variacao', 'cod_modelo', 'nome_item', 'quantidade_estoque'})
     for key in ['descricao_peca', 'codigo_oem', 'anos_aplicacao', 'posicao_porta', 'categoria']:
         if key in update_data and isinstance(update_data[key], str): update_data[key] = update_data[key].upper()
-    # Formata data
     if 'data_ultima_compra' in update_data:
         dt = update_data['data_ultima_compra']
         if isinstance(dt, date): update_data['data_ultima_compra'] = dt.strftime('%Y-%m-%d')
@@ -172,15 +141,45 @@ def update_peca_variacao(db: Session, peca_id: int, peca_update_data: schemas.Pe
     except exc.SQLAlchemyError as e: db.rollback(); print(f"Erro SQLA update peça {peca_id}: {e}"); raise ValueError("Erro interno atualizar.")
 
 def delete_peca_variacao(db: Session, peca_id: int) -> bool:
+    """Deleta uma variação de peça pelo ID, com tratamento de erro correto."""
     db_peca = get_peca_by_id(db, peca_id)
-    if not db_peca: print(f"Peça ID {peca_id} não encontrada."); return False
+    if not db_peca:
+        print(f"Peça ID {peca_id} não encontrada para deleção.")
+        return False # Peça não encontrada
+
+    # --- Bloco try/except CORRIGIDO (v5.14) ---
+    # A indentação dos excepts estava errada antes, agora está correta.
     try:
-        comp_em_kit = db.query(models.ComponenteKit).filter(models.ComponenteKit.componente_peca_id == peca_id).first()
-        if comp_em_kit: kit_pai = get_peca_by_id(db, comp_em_kit.kit_peca_id); sku_kit = kit_pai.sku_variacao if kit_pai else f"ID {comp_em_kit.kit_peca_id}"; raise ValueError(f"Peça é componente do Kit {sku_kit}.")
-        print(f"Deletando peça ID {peca_id}, SKU {db_peca.sku_variacao}..."); db.delete(db_peca); db.commit(); print("Deletada."); return True
-    except ValueError as ve: db.rollback(); print(f"Erro Validação deletar peça ID {peca_id}: {ve}"); raise ve
-    except exc.IntegrityError as e: db.rollback(); print(f"Erro Integridade deletar peça ID {peca_id}: {e}"); raise ValueError(f"Erro integridade: {e}")
-    except exc.SQLAlchemyError as e: db.rollback(); print(f"Erro SQLA deletar peça ID {peca_id}: {e}"); raise ValueError("Erro interno deletar.")
+        # Verificar se é componente de algum kit antes de deletar
+        componente_em_kit = db.query(models.ComponenteKit).filter(models.ComponenteKit.componente_peca_id == peca_id).first()
+        if componente_em_kit:
+            kit_pai = get_peca_by_id(db, componente_em_kit.kit_peca_id)
+            sku_kit_pai = kit_pai.sku_variacao if kit_pai else f"ID {componente_em_kit.kit_peca_id}"
+            # Levanta um erro que será capturado pelo except ValueError abaixo
+            raise ValueError(f"Não pode deletar: Peça é componente do Kit {sku_kit_pai}.")
+
+        # Se passou pela verificação, tenta deletar
+        print(f"Deletando peça ID {peca_id}, SKU {db_peca.sku_variacao}...")
+        db.delete(db_peca)
+        db.commit()
+        print(f"Peça ID {peca_id} deletada com sucesso.")
+        return True
+
+    except ValueError as ve:
+         db.rollback()
+         print(f"Erro de Validação ao deletar peça ID {peca_id}: {ve}")
+         raise ve
+
+    except exc.IntegrityError as e:
+        db.rollback()
+        print(f"Erro de Integridade ao deletar peça ID {peca_id}: {e}")
+        raise ValueError(f"Erro de integridade ao deletar: {e}")
+
+    except exc.SQLAlchemyError as e:
+        db.rollback()
+        print(f"Erro SQLAlchemy ao deletar peça ID {peca_id}: {e}")
+        raise ValueError("Erro interno ao deletar variação da peça.")
+    # --- FIM DA CORREÇÃO ---
 
 # --- CRUD Estoque ---
 def registrar_movimentacao_crud(db: Session, peca_id: int, tipo_mov: str, quantidade: int, observacao: Optional[str]):
@@ -248,4 +247,3 @@ def remove_imagem_crud(db: Session, imagem_id: int) -> bool:
 def get_imagens_crud(db: Session, peca_id: int) -> List[models.PecaImagem]:
     try: return db.query(models.PecaImagem).filter(models.PecaImagem.peca_id == peca_id).order_by(models.PecaImagem.id).all()
     except exc.SQLAlchemyError as e: print(f"Erro DB get imgs: {e}"); return []
-
