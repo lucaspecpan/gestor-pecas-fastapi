@@ -1,7 +1,7 @@
-# File: app/crud.py (Versão 5.6 - Com Categoria)
-from sqlalchemy.orm import Session
+# File: app/crud.py (Versão 5.7 - Update/Delete Peça)
+from sqlalchemy.orm import Session, joinedload, load_only # Importa joinedload/load_only
 from sqlalchemy import func, exc, select, update, delete
-from typing import List, Optional
+from typing import List, Optional, Dict, Any # Importa Dict, Any
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -42,10 +42,11 @@ def get_next_cod_final_base(db: Session, cod_montadora: int, cod_modelo: int) ->
     except exc.SQLAlchemyError as e: print(f"Erro DB get_next_cod_final_base: {e}"); return -2
 
 def get_peca_by_id(db: Session, peca_id: int) -> Optional[models.Peca]:
-    return db.query(models.Peca).filter(models.Peca.id == peca_id).first()
+    # Usa joinedload para já trazer a montadora junto, se necessário exibir depois
+    return db.query(models.Peca).options(joinedload(models.Peca.montadora)).filter(models.Peca.id == peca_id).first()
 
 def get_peca_by_sku_variacao(db: Session, sku_variacao: str) -> Optional[models.Peca]:
-    return db.query(models.Peca).filter(models.Peca.sku_variacao == sku_variacao).first()
+    return db.query(models.Peca).options(joinedload(models.Peca.montadora)).filter(models.Peca.sku_variacao == sku_variacao).first()
 
 def search_pecas_crud(db: Session, search_term: str, skip: int = 0, limit: int = 50) -> List[models.Peca]:
     like_term = f"%{search_term}%"
@@ -56,7 +57,7 @@ def search_pecas_crud(db: Session, search_term: str, skip: int = 0, limit: int =
                     models.Peca.codigo_base.like(like_term) |
                     models.Peca.descricao_peca.like(like_term) |
                     models.Peca.codigo_oem.like(like_term) |
-                    models.Peca.categoria.like(like_term) | # Busca por categoria
+                    models.Peca.categoria.like(like_term) |
                     models.Montadora.nome_montadora.like(like_term)
                 )\
                 .order_by(models.Peca.codigo_base, models.Peca.sku_variacao)\
@@ -66,63 +67,113 @@ def search_pecas_crud(db: Session, search_term: str, skip: int = 0, limit: int =
 
 def get_pecas_list(db: Session, skip: int = 0, limit: int = 100) -> List[models.Peca]:
     try:
+        # Opcional: Carregar montadora junto para evitar N+1 queries na listagem
         return db.query(models.Peca)\
+                 .options(joinedload(models.Peca.montadora).load_only(models.Montadora.nome_montadora))\
                  .order_by(models.Peca.codigo_base, models.Peca.sku_variacao)\
-                 .offset(skip).limit(limit).all()
+                 .offset(skip)\
+                 .limit(limit)\
+                 .all()
     except exc.SQLAlchemyError as e: print(f"Erro DB listar peças: {e}"); return []
 
 def create_peca_variacao(db: Session, peca_data: schemas.PecaCreate,
                          cod_montadora: int, image_urls: List[str] = []) -> models.Peca:
-    """Cria o registro da peça, incluindo categoria e associa URLs de imagens."""
     db_montadora = get_montadora_by_cod(db, cod_montadora=cod_montadora)
     if not db_montadora: raise ValueError(f"Montadora {cod_montadora} não encontrada.")
-
     next_fff = get_next_cod_final_base(db, cod_montadora, peca_data.cod_modelo)
     if next_fff < 0: raise ValueError(f"Limite/Erro cód base M/M {cod_montadora}/{peca_data.cod_modelo} ({next_fff}).")
-
     codigo_base_sku = f"{cod_montadora:03d}{peca_data.cod_modelo:02d}{next_fff:03d}"
     sufixo = peca_data.tipo_variacao if peca_data.tipo_variacao in ['R', 'P'] else None
     sku_variacao_final = codigo_base_sku + (sufixo if sufixo else "")
-
     if get_peca_by_sku_variacao(db, sku_variacao=sku_variacao_final):
         raise ValueError(f"SKU Variação '{sku_variacao_final}' já existe.")
 
-    # Prepara dados, incluindo categoria
-    peca_db_data = peca_data.model_dump(exclude={"tipo_variacao"}) # Exclui campo que não é coluna direta
+    peca_db_data = peca_data.model_dump(exclude={"tipo_variacao", "cod_montadora"}) # Exclui campos que não são colunas diretas ou já tratados
     peca_db_data['qtd_para_reparar'] = peca_db_data.get('qtd_para_reparar') or 0
     peca_db_data['preco_venda'] = peca_db_data.get('preco_venda')
     if isinstance(peca_db_data.get('data_ultima_compra'), date):
         peca_db_data['data_ultima_compra'] = peca_db_data['data_ultima_compra'].strftime('%Y-%m-%d')
-    elif peca_db_data.get('data_ultima_compra') == '':
-         peca_db_data['data_ultima_compra'] = None
+    elif peca_db_data.get('data_ultima_compra') == '': peca_db_data['data_ultima_compra'] = None
 
-    db_peca = models.Peca(
-        **peca_db_data, # Desempacota dados do schema (inclui categoria agora)
-        sku_variacao=sku_variacao_final,
-        codigo_base=codigo_base_sku,
-        sufixo_variacao=sufixo,
-        cod_montadora=cod_montadora,
-        cod_final_base=next_fff
-    )
-
+    db_peca = models.Peca( **peca_db_data, sku_variacao=sku_variacao_final, codigo_base=codigo_base_sku,
+                           sufixo_variacao=sufixo, cod_montadora=cod_montadora, cod_final_base=next_fff )
     try:
-        db.add(db_peca); db.flush()
-        peca_id = db_peca.id
-        if not peca_id: raise ValueError("Falha ao obter ID da peça.")
-
+        db.add(db_peca); db.flush(); peca_id = db_peca.id
+        if not peca_id: raise ValueError("Falha obter ID peça.")
         ean13 = generate_ean13(peca_id)
         if ean13: db_peca.codigo_ean13 = ean13
-
         for img_url in image_urls:
             if img_url and isinstance(img_url, str) and img_url.startswith('http'):
                 db.add(models.PecaImagem(peca_id=peca_id, url_imagem=img_url))
-            else: print(f"AVISO: URL imagem inválida ignorada p/ peça ID {peca_id}: {img_url}")
-
-        db.commit(); db.refresh(db_peca)
-        return db_peca
+            else: print(f"AVISO: URL img inválida ignorada p/ peça ID {peca_id}: {img_url}")
+        db.commit(); db.refresh(db_peca); return db_peca
     except exc.SQLAlchemyError as e: db.rollback(); print(f"Erro SQLA criar peça: {e}"); raise ValueError(f"Erro interno salvar variação.")
 
-# --- CRUD Estoque (Inalterado - lógica de qual estoque afetar vai no endpoint/serviço) ---
+# --- NOVO: Update Peça ---
+def update_peca_variacao(db: Session, peca_id: int, peca_update_data: schemas.PecaBase) -> Optional[models.Peca]:
+    """Atualiza os dados de uma variação de peça existente (exceto SKUs e códigos base)."""
+    db_peca = get_peca_by_id(db, peca_id)
+    if not db_peca:
+        return None # Ou raise ValueError("Peça não encontrada")
+
+    # Pega os dados do schema Pydantic como um dicionário
+    update_data = peca_update_data.model_dump(exclude_unset=True) # Exclui campos não enviados na requisição
+
+    # Remove campos que NÃO devem ser atualizados diretamente aqui
+    # (SKUs, códigos base, tipo/sufixo, estoque - estoque é atualizado por movimentação)
+    update_data.pop('tipo_variacao', None) # Tipo não deve mudar após criação
+    update_data.pop('cod_modelo', None) # Modelo não deve mudar? A discutir.
+    # cod_montadora também não deve mudar
+
+    # Formata data se presente
+    if 'data_ultima_compra' in update_data:
+        dt = update_data['data_ultima_compra']
+        if isinstance(dt, date): update_data['data_ultima_compra'] = dt.strftime('%Y-%m-%d')
+        elif dt == '' or dt is None: update_data['data_ultima_compra'] = None
+        else: raise ValueError("Formato de data inválido para Última Compra.") # Ou trata melhor
+
+    # Atualiza os campos no objeto SQLAlchemy
+    for key, value in update_data.items():
+        setattr(db_peca, key, value)
+
+    try:
+        db.add(db_peca) # Adiciona o objeto modificado à sessão
+        db.commit()    # Salva as alterações
+        db.refresh(db_peca) # Recarrega o objeto do DB
+        return db_peca
+    except exc.SQLAlchemyError as e:
+        db.rollback()
+        print(f"Erro SQLAlchemy ao atualizar peça ID {peca_id}: {e}")
+        raise ValueError("Erro interno ao atualizar variação da peça.")
+
+# --- NOVO: Delete Peça ---
+def delete_peca_variacao(db: Session, peca_id: int) -> bool:
+    """Deleta uma variação de peça pelo ID."""
+    db_peca = get_peca_by_id(db, peca_id)
+    if not db_peca:
+        return False # Peça não encontrada
+
+    try:
+        # O cascade="all, delete-orphan" nos relacionamentos (imagens, movimentações, componentes_do_kit)
+        # deve cuidar de deletar os registros relacionados automaticamente quando a peça é deletada.
+        # Verificar se há restrições (como ser componente de um kit) que impediriam a deleção.
+        if db_peca.kit_onde_eh_componente:
+             raise ValueError("Não é possível deletar: esta peça é componente de um ou mais Kits.")
+
+        db.delete(db_peca)
+        db.commit()
+        return True
+    except exc.IntegrityError as e: # Captura erro de restrição de FK (ex: é componente)
+        db.rollback()
+        print(f"Erro de Integridade ao deletar peça ID {peca_id}: {e}")
+        raise ValueError(f"Não é possível deletar: {e}") # Repassa a mensagem de erro
+    except exc.SQLAlchemyError as e:
+        db.rollback()
+        print(f"Erro SQLAlchemy ao deletar peça ID {peca_id}: {e}")
+        raise ValueError("Erro interno ao deletar variação da peça.")
+
+
+# --- CRUD Estoque (Inalterado) ---
 def registrar_movimentacao_crud(db: Session, peca_id: int, tipo_mov: str, quantidade: int, observacao: Optional[str]):
     if not peca_id or tipo_mov not in ['Entrada', 'Saida', 'Ajuste'] or not isinstance(quantidade, int) or quantidade < 0: raise ValueError("Dados inválidos.")
     if tipo_mov != 'Ajuste' and quantidade <= 0: raise ValueError("Qtd > 0 p/ Entrada/Saída.")
@@ -132,10 +183,7 @@ def registrar_movimentacao_crud(db: Session, peca_id: int, tipo_mov: str, quanti
         db.add(models.MovimentacaoEstoque(peca_id=peca_id, tipo_movimentacao=tipo_mov, quantidade=quantidade, observacao=observacao))
         estoque_atual = db_peca.quantidade_estoque or 0
         if tipo_mov == 'Entrada': db_peca.quantidade_estoque = estoque_atual + quantidade
-        elif tipo_mov == 'Saida':
-            novo_estoque = estoque_atual - quantidade
-            if novo_estoque < 0: print(f"AVISO: Estoque ID {peca_id} ficará negativo ({novo_estoque}).")
-            db_peca.quantidade_estoque = novo_estoque
+        elif tipo_mov == 'Saida': novo_estoque = estoque_atual - quantidade; db_peca.quantidade_estoque = novo_estoque
         elif tipo_mov == 'Ajuste': db_peca.quantidade_estoque = quantidade
         db.commit(); db.refresh(db_peca); return db_peca
     except exc.SQLAlchemyError as e: db.rollback(); print(f"Erro DB mov: {e}"); raise ValueError("Erro interno registrar mov.")
@@ -155,7 +203,6 @@ def set_kit_status_crud(db: Session, peca_id: int, eh_kit: bool) -> bool:
     except exc.SQLAlchemyError as e: db.rollback(); print(f"Erro DB kit status: {e}"); return False
 
 def get_componentes_crud(db: Session, kit_peca_id: int) -> List[models.ComponenteKit]:
-    from sqlalchemy.orm import joinedload # Import local para evitar ciclo? Melhor no topo.
     db_kit = get_peca_by_id(db, kit_peca_id);
     if not db_kit or not db_kit.eh_kit: print(f"ID {kit_peca_id} não é kit."); return []
     try: return db.query(models.ComponenteKit).filter(models.ComponenteKit.kit_peca_id == kit_peca_id).options(joinedload(models.ComponenteKit.componente).load_only(models.Peca.sku_variacao, models.Peca.descricao_peca)).order_by(models.ComponenteKit.id).all()
@@ -199,4 +246,3 @@ def remove_imagem_crud(db: Session, imagem_id: int) -> bool:
 def get_imagens_crud(db: Session, peca_id: int) -> List[models.PecaImagem]:
     try: return db.query(models.PecaImagem).filter(models.PecaImagem.peca_id == peca_id).order_by(models.PecaImagem.id).all()
     except exc.SQLAlchemyError as e: print(f"Erro DB get imgs: {e}"); return []
-
