@@ -6,13 +6,13 @@
 <h2>Lista de Peças / Variações</h2>
 
 {# Formulário de Busca #}
-<form action="/pecas" method="get" style="background-color: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+<form action="/pecas" method="get" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #dee2e6;">
     <label for="search" style="margin-bottom: 5px;">Buscar Peça:</label>
     <div style="display: flex; gap: 10px; align-items: center;">
-        <input type="text" id="search" name="search" placeholder="SKU, Descrição, OEM, Categoria..." value="{{ search_term or '' }}" style="flex-grow: 1; margin-bottom: 0;">
+        <input type="text" id="search" name="search" placeholder="SKU, Nome Item, Modelo, OEM, Categoria..." value="{{ search_term or '' }}" style="flex-grow: 1; margin-bottom: 0;">
         <button type="submit" style="padding: 10px 15px;">Buscar</button>
         {% if search_term %}
-        <a href="/pecas" style="padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; white-space: nowrap;">Limpar Busca</a>
+        <a href="/pecas" style="padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; white-space: nowrap;">Limpar</a>
         {% endif %}
     </div>
 </form>
@@ -20,7 +20,8 @@
 {# Botões de Ação #}
 <div style="margin-bottom: 20px; text-align: right;">
     <a href="/pecas/nova" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px;">+ Adicionar Variação</a>
-    <a href="/montadoras" style="padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-left: 10px;">Gerenciar Montadoras</a>
+    <a href="/montadoras" style="padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-left: 10px;">Montadoras</a>
+    {# Adicionar links para Estoque, Kits, etc. aqui depois #}
 </div>
 
 {# Mensagem de Erro #}
@@ -28,40 +29,55 @@
 
 {# Tabela #}
 <div style="overflow-x: auto;">
-    <table style="width: 100%; border-collapse: collapse;">
+    <table style="width: 100%; border-collapse: collapse; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
         <thead>
-            <tr style="background-color: #dee2e6; border-bottom: 2px solid #adb5bd;">
-                <th style="padding: 10px; text-align: left;">SKU Variação</th>
-                <th style="padding: 10px; text-align: left;">Descrição</th>
-                <th style="padding: 10px; text-align: left;">Categoria</th> {# NOVA COLUNA #}
-                <th style="padding: 10px; text-align: left;">SKU Base</th>
-                <th style="padding: 10px; text-align: left;">OEM</th>
-                <th style="padding: 10px; text-align: center;">Estoque</th>
-                <th style="padding: 10px; text-align: center;">P/ Reparar</th>
-                <th style="padding: 10px; text-align: right;">Preço Venda</th>
-                <th style="padding: 10px; text-align: center;">Ações</th>
+            <tr style="background-color: #e9ecef; border-bottom: 2px solid #adb5bd;">
+                <th style="padding: 12px; text-align: left;">SKU Variação</th>
+                <th style="padding: 12px; text-align: left;">Nome Item</th>
+                <th style="padding: 12px; text-align: left;">Modelo</th>
+                <th style="padding: 12px; text-align: left;">Montadora</th>
+                <th style="padding: 12px; text-align: left;">Anos</th>
+                <th style="padding: 12px; text-align: left;">Porta</th>
+                <th style="padding: 12px; text-align: center;">Estoque</th>
+                <th style="padding: 12px; text-align: right;">Preço Venda</th>
+                <th style="padding: 12px; text-align: center;">Ações</th>
             </tr>
         </thead>
         <tbody>
             {% for peca in pecas %}
             <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px;">{{ peca.sku_variacao }}</td>
-                <td style="padding: 8px;">{{ peca.descricao_peca | truncate(50) }}</td> {# Limita tamanho #}
-                <td style="padding: 8px;">{{ peca.categoria or '-' }}</td> {# EXIBE CATEGORIA #}
-                <td style="padding: 8px;">{{ peca.codigo_base }}</td>
-                <td style="padding: 8px;">{{ peca.codigo_oem or '-' }}</td>
-                <td style="padding: 8px; text-align: center;">{{ peca.quantidade_estoque }}</td>
-                <td style="padding: 8px; text-align: center;">{{ peca.qtd_para_reparar }}</td>
-                <td style="padding: 8px; text-align: right;">R$ {{ "%.2f"|format(peca.preco_venda|float) if peca.preco_venda is not none else '-' }}</td>
-                <td style="padding: 8px; text-align: center;">
+                <td style="padding: 10px;">
+                    {{ peca.sku_variacao }}
+                    {% if peca.sufixo_variacao == 'R' %} <span title="Reparada" style="color: orange; font-weight: bold;">(R)</span>
+                    {% elif peca.sufixo_variacao == 'P' %} <span title="Pátio" style="color: purple; font-weight: bold;">(P)</span>
+                    {% else %} <span title="Nova" style="color: green; font-weight: bold;">(N)</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 10px;">{{ peca.nome_item | title }}</td> {# Primeira letra maiúscula #}
+                <td style="padding: 10px;">{{ peca.modelo_rel.nome_modelo | title if peca.modelo_rel else 'N/A' }}</td>
+                <td style="padding: 10px;">{{ peca.montadora_rel.nome_montadora | title if peca.montadora_rel else 'N/A' }}</td>
+                <td style="padding: 10px;">{{ peca.anos_aplicacao or '-' }}</td>
+                <td style="padding: 10px;">
+                    {% if peca.posicao_porta %}
+                        {% set parts = peca.posicao_porta.split('/') %}
+                        {{ parts[0] }}<small style='color:grey;'> / {{ parts[1] if parts|length > 1 else '' }}</small>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td style="padding: 10px; text-align: center;">{{ peca.quantidade_estoque }}</td>
+                <td style="padding: 10px; text-align: right;">R$ {{ "%.2f"|format(peca.preco_venda|float) if peca.preco_venda is not none else '-' }}</td>
+                <td style="padding: 10px; text-align: center; white-space: nowrap;">
                     {# Adicionar links/botões reais depois #}
-                    <a href="#" title="Ver Detalhes (Futuro)">👁️</a>
-                    <a href="#" title="Editar (Futuro)">✏️</a>
+                    <a href="#" title="Ver Detalhes (Futuro)">👁️</a>&nbsp;
+                    <a href="#" title="Editar (Futuro)">✏️</a>&nbsp;
+                    <a href="#" title="Mov. Estoque (Futuro)">📦</a>&nbsp;
+                    <a href="#" title="Gerar Etiqueta (Futuro)">🖨️</a>
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="9" style="padding: 20px; text-align: center; font-style: italic;"> {# Ajustado colspan #}
+                <td colspan="9" style="padding: 20px; text-align: center; font-style: italic;">
                     {% if search_term %} Nenhuma peça encontrada para "{{ search_term }}".
                     {% else %} Nenhuma peça cadastrada. <a href="/pecas/nova">Adicionar?</a> {% endif %}
                 </td>

@@ -7,89 +7,115 @@
 
 {% if error_message %} <p class="error">{{ error_message }}</p> {% endif %}
 
+{# enctype necessário para upload de arquivos #}
 <form action="/pecas" method="post" enctype="multipart/form-data">
 
-    <h3>Informações Principais</h3>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-            <label for="cod_montadora">Montadora:*</label>
-            <select id="cod_montadora" name="cod_montadora" required>
-                <option value="">Selecione...</option>
-                {% for montadora in montadoras %}
-                    <option value="{{ montadora.cod_montadora }}">{{ montadora.nome_montadora }} ({{ montadora.cod_montadora }})</option>
-                {% endfor %}
-            </select>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;">
 
-            <label for="cod_modelo">Cód. Modelo:*</label>
-            <input type="number" id="cod_modelo" name="cod_modelo" required min="1" step="1">
+        <fieldset style="border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+            <legend style="font-weight: bold; padding: 0 5px;">Identificação Base</legend>
+            <div>
+                <label for="cod_montadora">Montadora:*</label>
+                <select id="cod_montadora" name="cod_montadora" required>
+                    <option value="">Selecione...</option>
+                    {% for montadora in montadoras %}
+                        <option value="{{ montadora.cod_montadora }}">{{ montadora.nome_montadora }} ({{ montadora.cod_montadora }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="nome_modelo">Nome Modelo Veículo:*</label>
+                <input type="text" id="nome_modelo" name="nome_modelo" required placeholder="Ex: GOLF MK4, SORENTO">
+            </div>
+             <div>
+                <label for="nome_item">Nome Principal do Item:*</label>
+                <input type="text" id="nome_item" name="nome_item" required placeholder="Ex: MAQUINA VIDRO ELETRICO">
+            </div>
+        </fieldset>
 
-            <label for="tipo_variacao">Tipo/Variação:*</label>
-            <select id="tipo_variacao" name="tipo_variacao" required>
-                <option value="N">Nova (Padrão)</option>
-                <option value="R">Reparada</option>
-                <option value="P">Pátio (Uso Interno)</option>
-            </select>
-        </div>
-        <div>
-            <label for="categoria">Categoria:</label> {# NOVO CAMPO #}
-            <input type="text" id="categoria" name="categoria" placeholder="Ex: Máquina Vidro, Componente Reparo">
+        <fieldset style="border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+            <legend style="font-weight: bold; padding: 0 5px;">Detalhes da Variação</legend>
+            <div>
+                <label for="tipo_variacao">Tipo/Variação:*</label>
+                <select id="tipo_variacao" name="tipo_variacao" required>
+                    <option value="N">Nova (Padrão)</option>
+                    <option value="R">Reparada</option>
+                    <option value="P">Pátio (Uso Interno)</option>
+                </select>
+            </div>
+            <div>
+                <label for="descricao_peca">Descrição Específica:</label>
+                <textarea id="descricao_peca" name="descricao_peca" rows="2" placeholder="Detalhes desta variação (opcional)"></textarea>
+            </div>
+             <div>
+                <label for="categoria">Categoria Geral:</label>
+                <input type="text" id="categoria" name="categoria" placeholder="Ex: Vidros, Freios, Motor (opcional)">
+            </div>
+        </fieldset>
 
-            <label for="codigo_oem">Código OEM:</label>
-            <input type="text" id="codigo_oem" name="codigo_oem" placeholder="Opcional">
+         <fieldset style="border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+            <legend style="font-weight: bold; padding: 0 5px;">Aplicação</legend>
+            <div>
+                <label for="codigo_oem">Código OEM:</label>
+                <input type="text" id="codigo_oem" name="codigo_oem" placeholder="Opcional">
+            </div>
+            <div>
+                <label for="anos_aplicacao">Anos Aplicação:</label>
+                <input type="text" id="anos_aplicacao" name="anos_aplicacao" placeholder="Ex: 98-07, 2009-2014">
+            </div>
+            <div>
+                <label for="posicao_porta">Porta:</label>
+                <select id="posicao_porta" name="posicao_porta">
+                    <option value="">Nenhuma / Não aplicável</option>
+                    {% for porta_opt in portas_opts %} {# Loop nas opções passadas pelo main.py #}
+                        <option value="{{ porta_opt }}">{{ porta_opt.replace('/', ' / ') }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </fieldset>
 
-            <label for="anos_aplicacao">Anos Aplicação:</label>
-            <input type="text" id="anos_aplicacao" name="anos_aplicacao" placeholder="Ex: 98-07, 2009-2014">
+        <fieldset style="border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+            <legend style="font-weight: bold; padding: 0 5px;">Estoque e Preço</legend>
+             <div>
+                <label for="quantidade_estoque">Estoque Inicial (Pronto):*</label>
+                <input type="number" id="quantidade_estoque" name="quantidade_estoque" required step="1" min="0" value="0">
+            </div>
+            <div>
+                <label for="preco_venda">Preço Venda R$:*</label>
+                <input type="number" id="preco_venda" name="preco_venda" required step="0.01" min="0" value="0.00">
+            </div>
+        </fieldset>
 
-            <label for="posicao_porta">Posição Porta:</label>
-            <select id="posicao_porta" name="posicao_porta">
-                <option value="">Nenhuma / Não aplicável</option>
-                <option value="DD/FR">Dianteira Direita (DD/FR)</option>
-                <option value="DE/FL">Dianteira Esquerda (DE/FL)</option>
-                <option value="TD/RR">Traseira Direita (TD/RR)</option>
-                <option value="TE/RL">Traseira Esquerda (TE/RL)</option>
-                <option value="PTM/TRK">Porta Malas (PTM/TRK)</option>
-            </select>
-        </div>
+        <fieldset style="border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+            <legend style="font-weight: bold; padding: 0 5px;">Custos e Compra</legend>
+            <div>
+                <label for="custo_ultima_compra">Custo Últ. Compra R$:</label>
+                <input type="number" id="custo_ultima_compra" name="custo_ultima_compra" step="0.01" min="0" value="0.00">
+            </div>
+             <div>
+                <label for="aliquota_imposto_percent">Alíquota Imposto %:</label>
+                <input type="number" id="aliquota_imposto_percent" name="aliquota_imposto_percent" step="0.01" min="0" max="100" value="0.00">
+            </div>
+            <div>
+                <label for="custo_estimado_adicional">Custo Adicional Est. R$:</label>
+                <input type="number" id="custo_estimado_adicional" name="custo_estimado_adicional" step="0.01" min="0" value="0.00" title="Ex: Embalagem, Etiqueta">
+            </div>
+            <div>
+                <label for="data_ultima_compra">Data Últ. Compra:</label>
+                <input type="date" id="data_ultima_compra" name="data_ultima_compra">
+             </div>
+        </fieldset>
+
+        <fieldset style="border: 1px solid #ccc; padding: 15px; border-radius: 5px;">
+            <legend style="font-weight: bold; padding: 0 5px;">Fotos (Máx 10)</legend>
+             <label for="imagens">Selecione os arquivos:</label>
+             <input type="file" id="imagens" name="imagens[]" multiple accept="image/png, image/jpeg, image/webp">
+        </fieldset>
+
     </div>
 
-    <label for="descricao_peca">Descrição:*</label>
-    <textarea id="descricao_peca" name="descricao_peca" rows="3" required placeholder="Descrição detalhada da peça/variação..."></textarea>
-
     <hr>
-    <h3>Custos, Preço e Compra (Opcional)</h3>
-     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
-        <div>
-            <label for="custo_insumos">Custo Insumos R$:</label>
-            <input type="number" id="custo_insumos" name="custo_insumos" step="0.01" min="0" value="0.00">
-            <label for="custo_etiqueta">Custo Etiqueta R$:</label>
-            <input type="number" id="custo_etiqueta" name="custo_etiqueta" step="0.01" min="0" value="0.00">
-        </div>
-        <div>
-             <label for="custo_embalagem">Custo Embalagem R$:</label>
-            <input type="number" id="custo_embalagem" name="custo_embalagem" step="0.01" min="0" value="0.00">
-            <label for="impostos_percent">Impostos %:</label>
-            <input type="number" id="impostos_percent" name="impostos_percent" step="0.01" min="0" max="100" value="0.00">
-        </div>
-         <div>
-            <label for="preco_venda">Preço Venda R$:</label>
-            <input type="number" id="preco_venda" name="preco_venda" step="0.01" min="0" value="0.00">
-             <label for="qtd_para_reparar">Qtd. p/ Reparar:</label> {# NOVO CAMPO #}
-            <input type="number" id="qtd_para_reparar" name="qtd_para_reparar" step="1" min="0" value="0">
-         </div>
-     </div>
-     <div style="margin-top: 15px;">
-         <label for="data_ultima_compra">Data Últ. Compra:</label>
-         <input type="date" id="data_ultima_compra" name="data_ultima_compra">
-     </div>
-
-
-     <hr>
-     <h3>Fotos (Máx 5)</h3>
-     <label for="imagens">Selecione os arquivos:</label>
-     <input type="file" id="imagens" name="imagens[]" multiple accept="image/png, image/jpeg, image/webp">
-
-    <hr>
-    <button type="submit">✔️ Salvar Nova Variação</button>
+    <button type="submit" style="width: 100%; padding: 12px; font-size: 1.1em;">✔️ Salvar Nova Variação</button>
 
 </form>
 {% endblock %}

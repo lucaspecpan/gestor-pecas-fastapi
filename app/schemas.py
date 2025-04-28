@@ -1,148 +1,114 @@
-# File: app/schemas.py (Versão 5.7 - Refatorado Modelo/Item/Custo)
-from pydantic import BaseModel, Field, validator, ConfigDict
-from typing import Optional, List
-from datetime import datetime, date
+# File: app/models.py (Versão 5.15 - Refatorado Final)
+from sqlalchemy import (Column, Integer, String, DateTime, Boolean, Float,
+                        ForeignKey, CheckConstraint, UniqueConstraint, Index, Text)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from .database import Base
 
-# Configuração Pydantic v2
-model_config = ConfigDict(from_attributes=True)
+class Montadora(Base):
+    __tablename__ = "montadoras"
+    id = Column(Integer, primary_key=True, index=True)
+    cod_montadora = Column(Integer, unique=True, index=True, nullable=False)
+    nome_montadora = Column(String(100), unique=True, index=True, nullable=False)
+    data_cadastro = Column(DateTime(timezone=True), server_default=func.now())
+    modelos = relationship("ModeloVeiculo", back_populates="montadora", cascade="all, delete-orphan")
+    pecas = relationship("Peca", back_populates="montadora_rel")
 
-# --- Montadora Schemas ---
-class MontadoraBase(BaseModel):
-    nome_montadora: str = Field(..., min_length=2, max_length=100)
+class ModeloVeiculo(Base):
+    __tablename__ = "modelos_veiculo"
+    id = Column(Integer, primary_key=True, index=True)
+    cod_montadora = Column(Integer, ForeignKey("montadoras.cod_montadora"), nullable=False)
+    nome_modelo = Column(String(100), nullable=False) # Ex: "GOLF MK4", "SORENTO"
+    cod_sequencial_modelo = Column(Integer, nullable=False) # Ex: 1, 2, 3... (sequencial POR montadora)
+    data_cadastro = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        UniqueConstraint('cod_montadora', 'nome_modelo', name='uq_montadora_modelo_nome'),
+        UniqueConstraint('cod_montadora', 'cod_sequencial_modelo', name='uq_montadora_modelo_seq'),
+        Index('idx_modelo_montadora_nome', "cod_montadora", "nome_modelo"),
+    )
+    montadora = relationship("Montadora", back_populates="modelos")
+    pecas = relationship("Peca", back_populates="modelo_rel")
 
-    @validator('nome_montadora', pre=True, always=True)
-    def name_must_not_be_empty_upper(cls, v):
-        if not isinstance(v, str) or not v.strip(): raise ValueError('Nome montadora vazio')
-        return v.strip().upper() # Garante UpperCase
+class Peca(Base):
+    __tablename__ = "pecas"
+    id = Column(Integer, primary_key=True, index=True)
+    sku_variacao = Column(String(15), unique=True, index=True, nullable=False) # MMMXXFFF ou MMMXXFFFR/P
+    codigo_base = Column(String(8), index=True, nullable=False) # MMMXXFFF
+    sufixo_variacao = Column(String(1), CheckConstraint("sufixo_variacao IN ('R', 'P')"), nullable=True) # R ou P (NULL para N)
 
-class MontadoraCreate(MontadoraBase):
-    pass
-
-class Montadora(MontadoraBase):
-    id: int
-    cod_montadora: int
-    data_cadastro: datetime
-    model_config = model_config
-
-# --- ModeloVeiculo Schemas ---
-class ModeloVeiculoBase(BaseModel):
-    nome_modelo: str = Field(..., min_length=1, max_length=100)
-    cod_montadora: int # Referência à montadora
-
-    @validator('nome_modelo', pre=True, always=True)
-    def modelo_name_upper(cls, v):
-        if not isinstance(v, str) or not v.strip(): raise ValueError('Nome modelo vazio')
-        return v.strip().upper()
-
-class ModeloVeiculoCreate(ModeloVeiculoBase):
-    pass # Para criar, precisa do nome e cod_montadora
-
-class ModeloVeiculo(ModeloVeiculoBase):
-    id: int
-    cod_sequencial_modelo: int # Código sequencial gerado
-    data_cadastro: datetime
-    # montadora: Montadora # Pode incluir dados da montadora se necessário
-    model_config = model_config
-
-# --- Peça Schemas (Refatorado) ---
-class PecaBase(BaseModel):
-    # Identificação do Item
-    nome_item: str = Field(..., min_length=3, max_length=150) # Nome do item agora é chave
-    tipo_variacao: str = Field(..., pattern="^[NRP]$") # N, R, P
+    # Chaves e Identificação do Item
+    cod_montadora = Column(Integer, ForeignKey("montadoras.cod_montadora"), nullable=False)
+    cod_modelo = Column(Integer, ForeignKey("modelos_veiculo.id"), nullable=False) # FK para ID da tabela Modelos
+    nome_item = Column(String(150), nullable=False, index=True) # Ex: "MAQUINA VIDRO ELETRICO"
+    cod_final_item = Column(Integer, nullable=False) # Sequencial FFF (999-000) por Montadora/Modelo/NomeItem
 
     # Descrição e Aplicação
-    descricao_peca: Optional[str] = None # Descrição específica da variação
-    codigo_oem: Optional[str] = Field(None, max_length=50)
-    anos_aplicacao: Optional[str] = Field(None, max_length=50)
-    posicao_porta: Optional[str] = Field(None, max_length=10)
+    descricao_peca = Column(Text) # Descrição específica da VARIAÇÃO (pode ser opcional?)
+    codigo_oem = Column(String(50), index=True)
+    anos_aplicacao = Column(String(50)) # Ex: "98-07", "2009-2014"
+    posicao_porta = Column(String(10)) # Ex: "TD/RR", "DE/FL", "PTM/TRK"
+    categoria = Column(String(100), index=True) # Categoria geral (opcional?)
+
+    # Estoque
+    quantidade_estoque = Column(Integer, nullable=False, default=0) # Estoque PRONTO (N/R/P) da VARIAÇÃO
+
+    # Kit
+    eh_kit = Column(Boolean, nullable=False, default=False)
 
     # Custos e Preço (Refatorado)
-    custo_ultima_compra: Optional[float] = Field(0.0, ge=0)
-    aliquota_imposto_percent: Optional[float] = Field(0.0, ge=0, le=100)
-    custo_estimado_adicional: Optional[float] = Field(0.0, ge=0)
-    preco_venda: float = Field(..., ge=0) # Tornar preço obrigatório? Ou default 0? Obrigatório por enquanto.
+    custo_ultima_compra = Column(Float, default=0.0)
+    aliquota_imposto_percent = Column(Float, default=0.0)
+    custo_estimado_adicional = Column(Float, default=0.0) # Para embalagem, etiqueta, etc.
+    preco_venda = Column(Float, nullable=False, default=0.0) # Obrigatório
 
     # Outros
-    data_ultima_compra: Optional[date] = None
-    quantidade_estoque: int = Field(..., ge=0) # Estoque inicial obrigatório ao criar? Sim.
-    # qtd_para_reparar foi removido do modelo Peca
+    codigo_ean13 = Column(String(13))
+    data_ultima_compra = Column(String(10)) # Formato AAAA-MM-DD
+    data_cadastro = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Validadores
-    @validator('nome_item', 'descricao_peca', 'codigo_oem', 'anos_aplicacao', 'posicao_porta', pre=True, always=True)
-    def sanitize_and_upper_strings(cls, v):
-         if isinstance(v, str):
-             stripped = v.strip().upper() # Converte para Maiúsculas
-             return stripped if stripped else None
-         return v
+    # Relacionamentos SQLAlchemy
+    montadora_rel = relationship("Montadora", back_populates="pecas")
+    modelo_rel = relationship("ModeloVeiculo", back_populates="pecas")
+    imagens = relationship("PecaImagem", back_populates="peca", cascade="all, delete-orphan")
+    movimentacoes = relationship("MovimentacaoEstoque", back_populates="peca", cascade="all, delete-orphan")
+    componentes_do_kit = relationship("ComponenteKit", foreign_keys="ComponenteKit.kit_peca_id", back_populates="kit", cascade="all, delete-orphan")
+    kit_onde_eh_componente = relationship("ComponenteKit", foreign_keys="ComponenteKit.componente_peca_id", back_populates="componente")
 
-    @validator('tipo_variacao', pre=True, always=True)
-    def uppercase_tipo_variacao(cls, v):
-        if isinstance(v, str): return v.strip().upper()
-        raise ValueError("Tipo Variação deve ser string")
+    __table_args__ = (
+        Index('idx_pecas_busca_fff', "cod_montadora", "cod_modelo", "nome_item"), # Índice para buscar próximo FFF
+        Index('idx_pecas_codigo_base', "codigo_base"),
+        Index('idx_pecas_sku_variacao', "sku_variacao"),
+        Index('idx_pecas_categoria', "categoria"),
+        Index('idx_pecas_porta', "posicao_porta"),
+        Index('idx_pecas_anos', "anos_aplicacao"),
+    )
 
-class PecaCreate(PecaBase):
-     # Para criar, precisamos saber a qual montadora e modelo pertence
-     cod_montadora: int
-     # O usuário digitará o NOME do modelo, não o ID interno
-     nome_modelo: str = Field(..., min_length=1, max_length=100)
+class PecaImagem(Base):
+    __tablename__ = "peca_imagens"
+    id = Column(Integer, primary_key=True, index=True)
+    peca_id = Column(Integer, ForeignKey("pecas.id", ondelete="CASCADE"), nullable=False, index=True)
+    url_imagem = Column(String(512), nullable=False) # URL Cloudinary
+    data_cadastro = Column(DateTime(timezone=True), server_default=func.now())
+    peca = relationship("Peca", back_populates="imagens")
 
-     @validator('nome_modelo', pre=True, always=True)
-     def modelo_create_name_upper(cls, v):
-         if not isinstance(v, str) or not v.strip(): raise ValueError('Nome modelo vazio')
-         return v.strip().upper()
+class MovimentacaoEstoque(Base):
+    __tablename__ = "movimentacoes_estoque"
+    id = Column(Integer, primary_key=True, index=True)
+    peca_id = Column(Integer, ForeignKey("pecas.id", ondelete="CASCADE"), nullable=False, index=True)
+    tipo_movimentacao = Column(String(15), CheckConstraint("tipo_movimentacao IN ('Entrada', 'Saida', 'Ajuste')"), nullable=False)
+    quantidade = Column(Integer, nullable=False)
+    observacao = Column(Text)
+    data_movimentacao = Column(DateTime(timezone=True), server_default=func.now())
+    peca = relationship("Peca", back_populates="movimentacoes")
 
-class Peca(PecaBase): # Schema completo para retorno
-    id: int
-    sku_variacao: str
-    codigo_base: str
-    sufixo_variacao: Optional[str] # R ou P
-    cod_montadora: int
-    cod_modelo: int # ID da tabela modelos_veiculo
-    cod_final_item: int # Sequencial FFF
-    codigo_ean13: Optional[str]
-    eh_kit: bool
-    data_cadastro: datetime
-    # Relacionamentos podem ser carregados se necessário
-    # montadora_rel: Montadora
-    # modelo_rel: ModeloVeiculo
-    model_config = model_config
-
-# --- Imagem Schemas (Inalterado) ---
-class PecaImagemBase(BaseModel): url_imagem: str
-class PecaImagem(PecaImagemBase): id: int; peca_id: int; data_cadastro: datetime; model_config = model_config
-class PecaComImagens(Peca): imagens: List[PecaImagem] = []; model_config = model_config
-
-# --- Estoque Schemas ---
-class MovimentacaoBase(BaseModel):
-    tipo_movimentacao: str = Field(..., pattern="^(Entrada|Saida|Ajuste)$") # Tipos básicos
-    quantidade: int = Field(..., gt=0, description="Quantidade a ser movimentada (positiva)")
-    observacao: Optional[str] = None
-
-class MovimentacaoCreate(MovimentacaoBase):
-    peca_id: int # ID da variação a ser movimentada
-
-class Movimentacao(MovimentacaoBase):
-    id: int
-    peca_id: int
-    data_movimentacao: datetime
-    model_config = model_config
-
-# --- Kit Schemas ---
-class ComponenteKitBase(BaseModel):
-    componente_peca_id: int # ID da variação componente
-    quantidade_componente: int = Field(1, gt=0)
-
-class ComponenteKitCreate(ComponenteKitBase):
-     pass # kit_peca_id virá da URL ou contexto
-
-class ComponenteKit(ComponenteKitBase):
-    id: int
-    kit_peca_id: int
-    # Pode incluir dados do componente se necessário
-    # componente: Peca
-    model_config = model_config
-
-class KitComComponentes(Peca): # Assume que Peca já tem eh_kit=True
-     componentes_do_kit: List[ComponenteKit] = []
-     model_config = model_config
+class ComponenteKit(Base):
+    __tablename__ = "componentes_kit"
+    id = Column(Integer, primary_key=True, index=True)
+    kit_peca_id = Column(Integer, ForeignKey("pecas.id", ondelete="CASCADE"), nullable=False, index=True)
+    componente_peca_id = Column(Integer, ForeignKey("pecas.id", ondelete="RESTRICT"), nullable=False, index=True)
+    quantidade_componente = Column(Integer, nullable=False, default=1)
+    kit = relationship("Peca", foreign_keys=[kit_peca_id], back_populates="componentes_do_kit")
+    componente = relationship("Peca", foreign_keys=[componente_peca_id], back_populates="kit_onde_eh_componente")
+    __table_args__ = ( UniqueConstraint('kit_peca_id', 'componente_peca_id', name='uq_kit_componente'),
+                       Index('idx_comp_kit_id', "kit_peca_id"), Index('idx_comp_comp_id', "componente_peca_id"), )
 
