@@ -1,4 +1,4 @@
-# File: app/crud.py (Versão 5.14 - Correção Finalíssima Try/Except e Imagem)
+# File: app/crud.py (Versão 5.14 - Correção Final Try/Except)
 from sqlalchemy.orm import Session, joinedload, load_only, selectinload
 from sqlalchemy import func, exc, select, update, delete
 from typing import List, Optional, Dict, Any
@@ -154,7 +154,8 @@ def delete_peca_variacao(db: Session, peca_id: int) -> bool:
         if componente_em_kit:
             kit_pai = get_peca_by_id(db, componente_em_kit.kit_peca_id)
             sku_kit_pai = kit_pai.sku_variacao if kit_pai else f"ID {componente_em_kit.kit_peca_id}"
-            raise ValueError(f"Não pode deletar: Peça é componente do Kit {sku_kit_pai}.") # Levanta erro
+            # Levanta um erro que será capturado pelo except ValueError abaixo
+            raise ValueError(f"Não pode deletar: Peça é componente do Kit {sku_kit_pai}.")
 
         # Se passou pela verificação, tenta deletar
         print(f"Deletando peça ID {peca_id}, SKU {db_peca.sku_variacao}...")
