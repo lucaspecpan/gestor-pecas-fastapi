@@ -1,50 +1,53 @@
-# File: app/database.py (Versão 5.18 - Simplificado)
+# File: app/database.py (v5.26 - Correção Indentação/Estrutura Final)
 import os
-import sys
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
 from dotenv import load_dotenv
-from fastapi import HTTPException # Mantido para get_db
+import sys
+from fastapi import HTTPException # Import necessário para get_db
 
 load_dotenv()
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = None
-SessionLocal = None
+engine = None # Inicializa como None
 
-if SQLALCHEMY_DATABASE_URL:
-    try:
-        engine = create_engine(SQLALCHEMY_DATABASE_URL)
-        # Testa a conexão inicial
-        with engine.connect() as connection:
-             print("Conexão inicial com o banco de dados bem sucedida (database.py)!")
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    except Exception as e:
-        print("\n" + "="*50 + f"\n ERRO AO CONECTAR/CRIAR ENGINE: {e}\n Verifique a DATABASE_URL no .env.\n" + "="*50 + "\n")
-        engine = None # Garante que engine é None se falhar
-        SessionLocal = None
+if SQLALCHEMY_DATABASE_URL is None:
+    print("\n" + "="*50)
+    print(" ERRO FATAL: Variável de ambiente DATABASE_URL não definida! ")
+    print(" Verifique se criou o arquivo '.env' na raiz do projeto local")
+    print(" e colocou a URL de conexão do PostgreSQL nele.")
+    print(" Ex: DATABASE_URL='postgresql://user:pass@host:port/dbname'")
+    print("="*50 + "\n")
+    # Considerar sys.exit(1) aqui se for crítico
 else:
-     print("\n" + "="*50 + "\n ERRO FATAL: DATABASE_URL não definida no .env!\n" + "="*50 + "\n")
+    try:
+        engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
+        # Testa a conexão brevemente
+        with engine.connect() as connection:
+            print("Conexão inicial com o banco de dados bem sucedida (database.py)!")
+    except Exception as e:
+        print("\n" + "="*50)
+        print(f" ERRO AO CONECTAR AO BANCO DE DADOS (database.py): {e}")
+        print(f" Verifique se a DATABASE_URL no seu arquivo .env local está correta.")
+        print(" URL usada (parcialmente oculta):", SQLALCHEMY_DATABASE_URL.split('@')[-1] if '@' in SQLALCHEMY_DATABASE_URL else "URL inválida?")
+        print("="*50 + "\n")
+        engine = None # Garante que engine é None se falhar
 
+# Só cria SessionLocal se engine foi criado com sucesso
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 
-# Base para os modelos ORM - models.py importará esta Base
+# Base para os modelos ORM
 Base = declarative_base()
 
-# --- Função para obter uma sessão do DB ---
+# Função para obter uma sessão do DB
 def get_db():
-    """Obtém uma sessão do banco de dados para usar em um endpoint."""
     if SessionLocal is None:
-         # Se a sessão não pôde ser criada (provavelmente falha na conexão inicial)
-         # Log do erro já deve ter aparecido no console ao iniciar
-         raise HTTPException(status_code=503, detail="Configuração do banco de dados indisponível.")
+         # Se SessionLocal não foi criado (erro na conexão inicial)
+         raise HTTPException(status_code=503, detail="Serviço de banco de dados indisponível.")
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-# A função init_db() foi removida daqui.
-# A criação das tabelas será feita explicitamente no seed_db.py ou main.py (se necessário).
-
